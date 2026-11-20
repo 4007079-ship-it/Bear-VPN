@@ -1,0 +1,65 @@
+name: app-build
+
+# Тестовые сборки приложения: APK для Android и папка с .exe для Windows.
+# Платформенные каталоги (android/, windows/) генерируются flutter create
+# при сборке; когда понадобятся свои настройки манифестов — закоммитим их.
+
+on:
+  push:
+    paths: ["app/**", "packages/**", ".github/workflows/app-build.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        run: |
+          flutter create --platforms=android --org com.smv --project-name smv_vpn .
+          sed -i 's/android:label="smv_vpn"/android:label="SMV-VPN"/' android/app/src/main/AndroidManifest.xml
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter build apk --release
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/SMV-VPN-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMV-VPN-android
+          path: app/build/SMV-VPN-test.apk
+          retention-days: 30
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        shell: pwsh
+        run: |
+          flutter create --platforms=windows --org com.smv --project-name smv_vpn .
+          (Get-Content windows/runner/main.cpp) -replace 'L"smv_vpn"', 'L"SMV-VPN"' | Set-Content windows/runner/main.cpp
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMV-VPN-windows
+          path: app/build/windows/x64/runner/Release/
+          retention-days: 30

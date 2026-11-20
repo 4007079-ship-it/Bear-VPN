@@ -1,0 +1,30 @@
+name: smv_vpn
+description: SMV-VPN — клиент (тестовая сборка импорта узлов).
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  smv_link_parser:
+    path: ../packages/smv_link_parser
+  # Камера (Android/iOS/macOS). На Windows не используется.
+  mobile_scanner: ^6.0.2
+  # Выбор файлов: Android, Windows, Linux, macOS, iOS.
+  file_selector: ^1.0.3
+  # Генерация QR — офлайн.
+  qr_flutter: ^4.1.0
+  # Декодирование QR из изображения — чистый Dart, офлайн, все платформы.
+  zxing2: ^0.2.3
+  image: ^4.1.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
