@@ -11,6 +11,7 @@
 /// ```
 library;
 
+export 'src/amnezia.dart' show decodeAmneziaKey;
 export 'src/link_parser.dart' show LinkParser;
 export 'src/model.dart';
 export 'src/result.dart'
@@ -19,3 +20,4 @@ export 'src/uri_parsers.dart'
     show parseProxyUri, supportedSchemes, knownUnsupportedSchemes;
 export 'src/uri_serializer.dart' show nodeToUri, shareUri, containsSecrets;
 export 'src/validator.dart';
+export 'src/wireguard.dart' show nodeToWgConf;

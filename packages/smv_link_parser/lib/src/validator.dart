@@ -25,6 +25,12 @@ enum ValidationCode {
   vmessLegacyAlterId,
   tlsMissingSni,
   plainTextProxy,
+  invalidKey,
+  missingAddress,
+  awgInvalidJunk,
+  awgInvalidPadding,
+  awgInvalidHeaders,
+  awgUnknownParams,
 }
 
 class ValidationIssue {
@@ -133,6 +139,9 @@ List<ValidationIssue> validateNode(ProxyNode n) {
         warn(ValidationCode.plainTextProxy,
             'Прокси без шифрования: трафик и пароль передаются открыто');
       }
+    case ProxyProtocol.wireguard:
+    case ProxyProtocol.amneziawg:
+      _validateWireGuard(n, err, warn);
   }
 
   if (!supportedTransports.contains(n.transport.type)) {
@@ -182,6 +191,95 @@ List<ValidationIssue> validateNode(ProxyNode n) {
   }
 
   return out;
+}
+
+typedef _Report = void Function(ValidationCode, String);
+
+bool _isWgKey(String? k) {
+  if (k == null) return false;
+  final b = tryDecodeBase64Bytes(k);
+  return b != null && b.length == 32;
+}
+
+final _hRe = RegExp(r'^(\d+)(?:-(\d+))?$');
+
+void _validateWireGuard(ProxyNode n, _Report err, _Report warn) {
+  final wg = n.wireguard;
+  if (wg == null) {
+    err(ValidationCode.invalidKey, 'Нет параметров WireGuard');
+    return;
+  }
+  if (!_isWgKey(wg.privateKey)) {
+    err(ValidationCode.invalidKey, 'Некорректный PrivateKey');
+  }
+  if (!_isWgKey(wg.peerPublicKey)) {
+    err(ValidationCode.invalidKey, 'Некорректный PublicKey сервера');
+  }
+  if (wg.presharedKey != null && !_isWgKey(wg.presharedKey)) {
+    err(ValidationCode.invalidKey, 'Некорректный PresharedKey');
+  }
+  if (wg.addresses.isEmpty) {
+    err(ValidationCode.missingAddress, 'Не указан Address интерфейса');
+  }
+
+  final a = wg.awg;
+  if (a == null) return;
+
+  final jc = a.jc ?? 0;
+  if (jc < 0 || jc > 128) {
+    err(ValidationCode.awgInvalidJunk, 'Jc должен быть от 0 до 128');
+  }
+  if (jc > 0) {
+    final jmin = a.jmin ?? 0;
+    final jmax = a.jmax ?? 0;
+    if (jmin < 0 || jmax >= 1280 || jmin > jmax) {
+      err(ValidationCode.awgInvalidJunk,
+          'Нужно 0 ≤ Jmin ≤ Jmax < 1280 (сейчас Jmin=$jmin, Jmax=$jmax)');
+    }
+  }
+
+  void range(int? v, int max, String name) {
+    if (v != null && (v < 0 || v > max)) {
+      err(ValidationCode.awgInvalidPadding, '$name должен быть от 0 до $max');
+    }
+  }
+
+  range(a.s1, 1132, 'S1');
+  range(a.s2, 1188, 'S2');
+  range(a.s3, 1216, 'S3');
+  range(a.s4, 32, 'S4');
+  if (a.s1 != null && a.s2 != null && a.s1! + 56 == a.s2) {
+    err(ValidationCode.awgInvalidPadding,
+        'S1 + 56 не должно быть равно S2 — пакеты станут различимы');
+  }
+
+  final ranges = <(int, int)>[];
+  for (final (i, h) in a.headers.indexed) {
+    if (h == null) continue;
+    final m = _hRe.firstMatch(h.trim());
+    final lo = m == null ? null : int.tryParse(m.group(1)!);
+    final hi = m == null ? null : int.tryParse(m.group(2) ?? m.group(1)!);
+    if (lo == null || hi == null || lo > hi || hi > 0xFFFFFFFF) {
+      err(ValidationCode.awgInvalidHeaders, 'Некорректный H${i + 1}: $h');
+      return;
+    }
+    ranges.add((lo, hi));
+  }
+  for (var i = 0; i < ranges.length; i++) {
+    for (var j = i + 1; j < ranges.length; j++) {
+      if (ranges[i].$1 <= ranges[j].$2 && ranges[j].$1 <= ranges[i].$2) {
+        err(ValidationCode.awgInvalidHeaders,
+            'Значения H1–H4 должны различаться и не пересекаться');
+        return;
+      }
+    }
+  }
+
+  if (a.extra.isNotEmpty) {
+    warn(ValidationCode.awgUnknownParams,
+        'Параметры AmneziaWG ${a.extra.keys.join(', ')} требуют поддержки '
+        'AWG 3.x в ядре клиента');
+  }
 }
 
 bool _isIp(String s) =>

@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:yaml/yaml.dart';
 
+import 'amnezia.dart';
 import 'config_formats.dart';
 import 'model.dart';
 import 'result.dart';
 import 'uri_parsers.dart';
 import 'util.dart';
+import 'wireguard.dart';
 
 /// SMV.LinkParser — единая точка входа для поля «Вставьте ссылку или ключ»,
 /// буфера обмена, QR-кодов и файлов.
@@ -45,6 +47,10 @@ class LinkParser {
       return _parseJson(text, st, now);
     }
 
+    if (looksLikeWgConf(text)) {
+      return _parseWgConf(text, st, now);
+    }
+
     if (_clashProxiesRe.hasMatch(text)) {
       return _parseClash(text, st, now);
     }
@@ -75,8 +81,9 @@ class LinkParser {
 
     return const ParseResult(format: InputFormat.unknown, issues: [
       ParseIssue(ParseErrorCode.unrecognized,
-          'Не удалось распознать: ожидается ссылка (vless://, hysteria2://…), '
-          'base64-подписка, JSON sing-box/Xray или YAML Clash')
+          'Не удалось распознать: ожидается ссылка (vless://, hysteria2://, '
+          'vpn://…), base64-подписка, JSON sing-box/Xray, YAML Clash '
+          'или конфиг AmneziaWG/WireGuard')
     ]);
   }
 
@@ -123,6 +130,20 @@ class LinkParser {
         subs.add(t);
         continue;
       }
+      if (t.toLowerCase().startsWith('vpn://')) {
+        final json = decodeAmneziaKey(t);
+        if (json == null) {
+          issues.add(const ParseIssue(ParseErrorCode.malformed,
+                  'Повреждённый ключ AmneziaVPN (vpn://)',
+                  kind: 'amnezia')
+              .withIndex(i));
+          continue;
+        }
+        final r = extractAmnezia(json, raw: t, sourceType: st, now: now);
+        nodes.addAll(r.nodes);
+        issues.addAll(r.issues.map((e) => e.index == null ? e.withIndex(i) : e));
+        continue;
+      }
       try {
         nodes.add(parseProxyUri(t, sourceType: st, now: now));
       } on ParseException catch (e) {
@@ -133,6 +154,9 @@ class LinkParser {
     final InputFormat fmt;
     if (nodes.isEmpty && subs.isNotEmpty) {
       fmt = InputFormat.subscriptionUrl;
+    } else if (tokens.length == 1 &&
+        tokens.single.toLowerCase().startsWith('vpn://')) {
+      fmt = InputFormat.amneziaKey;
     } else {
       fmt = tokens.length == 1 ? InputFormat.uri : InputFormat.uriList;
     }
@@ -172,6 +196,7 @@ class LinkParser {
     final singBox = <Object?>[];
     final xray = <Object?>[];
     var clash = <Object?>[];
+    final amnezia = <Map<String, Object?>>[];
 
     void collectOutbound(Object? o) {
       final m = asMap(o);
@@ -185,7 +210,9 @@ class LinkParser {
 
     void collectConfig(Object? c) {
       final m = asMap(c);
-      if (m.containsKey('outbounds')) {
+      if (looksLikeAmneziaJson(m)) {
+        amnezia.add(m);
+      } else if (m.containsKey('outbounds')) {
         asList(m['outbounds']).forEach(collectOutbound);
       } else if (m.containsKey('proxies')) {
         clash = [...clash, ...asList(m['proxies'])];
@@ -198,6 +225,18 @@ class LinkParser {
       json.forEach(collectConfig);
     } else {
       collectConfig(json);
+    }
+
+    if (amnezia.isNotEmpty && singBox.isEmpty && xray.isEmpty && clash.isEmpty) {
+      final nodes = <ProxyNode>[];
+      final issues = <ParseIssue>[];
+      for (final a in amnezia) {
+        final r = extractAmnezia(a, raw: text, sourceType: st, now: now);
+        nodes.addAll(r.nodes);
+        issues.addAll(r.issues);
+      }
+      return ParseResult(
+          format: InputFormat.amneziaKey, nodes: nodes, issues: issues);
     }
 
     if (singBox.isEmpty && xray.isEmpty && clash.isEmpty) {
@@ -233,6 +272,19 @@ class LinkParser {
           'В конфиге нет прокси-узлов (только служебные outbounds)'));
     }
     return ParseResult(format: fmt, nodes: nodes, issues: issues);
+  }
+
+  // -------------------------------------------------------------------------
+  // WireGuard / AmneziaWG .conf
+
+  ParseResult _parseWgConf(String text, SourceType st, DateTime now) {
+    try {
+      final node = parseWgConf(text,
+          source: NodeSource(type: st, raw: text, importedAt: now.toUtc()));
+      return ParseResult(format: InputFormat.wireguardConf, nodes: [node]);
+    } on ParseException catch (e) {
+      return ParseResult(format: InputFormat.wireguardConf, issues: [e.issue]);
+    }
   }
 
   // -------------------------------------------------------------------------

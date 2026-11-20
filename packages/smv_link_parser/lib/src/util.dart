@@ -38,6 +38,24 @@ String? tryDecodeBase64(String input) {
   }
 }
 
+/// Как [tryDecodeBase64], но возвращает байты (для сжатых данных).
+List<int>? tryDecodeBase64Bytes(String input) {
+  final s = input.trim();
+  if (s.isEmpty || !_b64CharsRe.hasMatch(s)) return null;
+  var t = s
+      .replaceAll(RegExp(r'\s'), '')
+      .replaceAll('-', '+')
+      .replaceAll('_', '/')
+      .replaceAll('=', '');
+  if (t.length % 4 == 1) return null;
+  t = t.padRight(t.length + (4 - t.length % 4) % 4, '=');
+  try {
+    return base64.decode(t);
+  } on FormatException {
+    return null;
+  }
+}
+
 /// Base64url без padding (для SIP002 userinfo).
 String encodeBase64Url(String s) =>
     base64Url.encode(utf8.encode(s)).replaceAll('=', '');

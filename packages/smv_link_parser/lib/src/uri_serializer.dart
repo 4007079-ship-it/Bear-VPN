@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'model.dart';
 import 'util.dart';
+import 'wireguard.dart';
 
-/// ProxyNode → ссылка для «Поделиться / QR».
+/// ProxyNode → ссылка для «Поделиться / QR» (для WireGuard/AmneziaWG —
+/// текст .conf).
 ///
 /// Формат совместим с v2rayN, Hiddify, Streisand и sing-box-клиентами.
 /// Нужен, потому что `source.raw` есть не всегда в виде ссылки (узлы из
@@ -73,6 +75,11 @@ String nodeToUri(ProxyNode n) {
               ? _enc(user)
               : '${_enc(user)}:${_enc(n.password!)}');
       return _build(scheme, info, n, const {});
+    case ProxyProtocol.wireguard:
+    case ProxyProtocol.amneziawg:
+      // У WireGuard/AmneziaWG нет общепринятой ссылки: QR-код содержит
+      // текст .conf — его читают AmneziaWG, WireGuard и AmneziaVPN.
+      return nodeToWgConf(n);
   }
 }
 
@@ -163,4 +170,6 @@ String shareUri(ProxyNode n, {bool preferRaw = true}) {
 
 /// Есть ли в ссылке секреты — для предупреждения «QR содержит ключи доступа».
 bool containsSecrets(ProxyNode n) =>
-    (n.uuid ?? '').isNotEmpty || (n.password ?? '').isNotEmpty;
+    (n.uuid ?? '').isNotEmpty ||
+    (n.password ?? '').isNotEmpty ||
+    (n.wireguard?.privateKey ?? '').isNotEmpty;

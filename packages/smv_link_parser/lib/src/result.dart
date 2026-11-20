@@ -9,6 +9,12 @@ enum InputFormat {
   singBoxJson,
   xrayJson,
   clashYaml,
+
+  /// Ключ AmneziaVPN `vpn://…` или его JSON.
+  amneziaKey,
+
+  /// Конфиг WireGuard / AmneziaWG (.conf).
+  wireguardConf,
   subscriptionUrl,
   unknown,
 }

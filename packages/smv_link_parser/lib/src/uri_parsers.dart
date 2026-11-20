@@ -16,6 +16,7 @@ const supportedSchemes = {
   'socks',
   'socks5',
   'http',
+  'vpn', // AmneziaVPN, разбирается в LinkParser (amnezia.dart)
 };
 
 /// Известные схемы прокси, которые пока не поддерживаются: для них

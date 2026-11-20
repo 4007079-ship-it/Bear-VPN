@@ -194,3 +194,26 @@ Drag-and-drop	desktop_drop	встроено (Tauri)	—	—
 - **Секреты**: ошибки разбора не содержат исходной строки; для логов — `ProxyNode.toRedactedJson()`. `source.raw` содержит ключи и должен храниться в защищённом хранилище (Keychain / Keystore).
 - **xhttp** разбирается, но работает только с ядром Xray — учесть при выборе ядра в `docs/decision-stack.md`.
 - **Clash `network: http`** — это HTTP-заголовок поверх TCP, а не h2.
+
+## 10. AmneziaVPN / AmneziaWG
+
+**Форматы.**
+- `vpn://…` — ключ AmneziaVPN: base64url(qCompress(JSON)), qCompress = 4 байта длины + zlib. В JSON — `containers[]`; для `amnezia-awg`/`amnezia-awg2`/`amnezia-wireguard` в `last_config.config` лежит INI, плейсхолдеры `$PRIMARY_DNS`/`$SECONDARY_DNS` заменяются на `dns1`/`dns2`. Старые ключи без INI собираются из полей `client_priv_key`, `server_pub_key`, `psk_key`, `client_ip`, `hostName`, `port`, `Jc`…`H4`. Контейнеры `amnezia-xray`/`amnezia-ssxray` разбираются как Xray JSON.
+- `.conf` AmneziaWG / WireGuard (файл, вставка, QR из приложений AmneziaWG/WireGuard).
+- В UI: те же пункты «Из буфера», «Вставить», «QR», «Из файла» (`.vpn`, `.conf`).
+
+**Модель.** Протоколы `amneziawg` и `wireguard`; поле `wireguard`: ключи, Address, DNS, MTU, AllowedIPs, PersistentKeepalive и `awg` (Jc, Jmin, Jmax, S1–S4, H1–H4 — число или диапазон, I1–I5, `extra` для ключей AWG 3.x). PreUp/PostUp не сохраняются: это shell-команды.
+
+**Не поддерживается.** Ключи Amnezia Premium/Free (`api_key` → конфиг выдаёт сервер Amnezia), контейнеры OpenVPN, Cloak, IKEv2 — пользователю показывается «Протокол не поддерживается».
+
+**Экспорт / QR.** Узел из `vpn://` отдаёт исходный ключ (его читает AmneziaVPN). Узел из `.conf` или изменённый — текст `.conf` (читают AmneziaWG, WireGuard, AmneziaVPN).
+
+**Валидация.** Ключи — base64 от 32 байт; Address обязателен; `0 ≤ Jc ≤ 128`; при `Jc > 0` — `Jmin ≤ Jmax < 1280`; `S1 ≤ 1132`, `S2 ≤ 1188`, `S3 ≤ 1216`, `S4 ≤ 32`, `S1 + 56 ≠ S2`; H1–H4 — валидные uint32 или диапазоны без пересечений. Ключи AWG 3.x — предупреждение.
+
+**Важно для выбора ядра (`docs/decision-stack.md`).** AmneziaWG не поддерживается ни основной веткой sing-box, ни Xray: нужен отдельный движок туннеля — `amneziawg-go` (userspace, все платформы) или модуль ядра на Linux. Параметры S1–S4/H1–H4 должны точно совпадать с сервером, иначе handshake не пройдёт; поддержка AWG 2.0 (S3/S4, диапазоны H, I1–I5) требует версии amneziawg-go с поддержкой AWG 2.0 (проверить при выборе).
+
+**DoD (дополнение).**
+□ Импорт `vpn://` с контейнером AWG → предпросмотр → добавление.
+□ Импорт `.conf` AmneziaWG 2.0 из файла и из QR.
+□ Экспорт узла AmneziaWG в QR (.conf) → импорт в приложение AmneziaWG.
+□ Понятная ошибка для ключей Amnezia Premium и контейнеров OpenVPN/Cloak.
