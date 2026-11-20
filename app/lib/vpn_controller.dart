@@ -62,9 +62,21 @@ class VpnController extends ChangeNotifier {
       VlessConnectionState.disconnecting => VpnState.disconnecting,
       _ => VpnState.disconnected,
     };
-    if (next == VpnState.disconnected) activeNodeId = null;
+    // Подключение уже подтверждено проверкой — не откатываемся на
+    // «Подключение…» из-за запоздалых статусов плагина.
+    if (proxyOnlyMode &&
+        _connectedAt != null &&
+        state == VpnState.connected &&
+        next == VpnState.connecting) {
+      return;
+    }
+    if (next == VpnState.disconnected) {
+      activeNodeId = null;
+      _connectedAt = null;
+    }
     state = next;
-    duration = Duration(seconds: _i(s.duration));
+    final pd = _i(s.duration);
+    if (pd > 0 || _connectedAt == null) duration = Duration(seconds: pd);
     upload = _i(s.upload);
     download = _i(s.download);
     uploadSpeed = _i(s.uploadSpeed);
@@ -105,6 +117,10 @@ class VpnController extends ChangeNotifier {
         proxyOnly: proxyOnlyMode,
         notificationDisconnectButtonName: 'Отключить',
       );
+      // Windows (системный прокси): плагин может не прислать статус
+      // CONNECTED, хотя прокси уже работает. Проверяем сами: если запрос
+      // через активное ядро проходит — считаем подключение установленным.
+      if (proxyOnlyMode) unawaited(_confirmByProbe(node.id));
       _watchdog?.cancel();
       _watchdog = Timer(const Duration(seconds: 20), () {
         if (state == VpnState.connecting) {
@@ -121,6 +137,40 @@ class VpnController extends ChangeNotifier {
     }
   }
 
+  Future<void> _confirmByProbe(String nodeId) async {
+    final started = DateTime.now();
+    for (var i = 0; i < 15; i++) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (state != VpnState.connecting || activeNodeId != nodeId) return;
+      int d;
+      try {
+        d = _i(await _vless.getConnectedServerDelay());
+      } catch (_) {
+        d = -1;
+      }
+      if (d > 0 && state == VpnState.connecting && activeNodeId == nodeId) {
+        state = VpnState.connected;
+        delayMs = d;
+        error = null;
+        _connectedAt = started;
+        _ticker?.cancel();
+        _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (state != VpnState.connected) {
+            _ticker?.cancel();
+            return;
+          }
+          duration = DateTime.now().difference(_connectedAt!);
+          notifyListeners();
+        });
+        notifyListeners();
+        return;
+      }
+    }
+  }
+
+  DateTime? _connectedAt;
+  Timer? _ticker;
+
   Future<void> disconnect() async {
     try {
       state = VpnState.disconnecting;
@@ -129,6 +179,9 @@ class VpnController extends ChangeNotifier {
     } catch (e) {
       error = _humanError(e);
     } finally {
+      _watchdog?.cancel();
+      _ticker?.cancel();
+      _connectedAt = null;
       state = VpnState.disconnected;
       activeNodeId = null;
       notifyListeners();
