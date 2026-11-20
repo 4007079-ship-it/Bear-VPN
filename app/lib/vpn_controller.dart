@@ -19,6 +19,7 @@ class VpnController extends ChangeNotifier {
   late final FlutterVless _vless =
       FlutterVless(onStatusChanged: _onStatus);
   bool _initialized = false;
+  Timer? _watchdog;
 
   VpnState state = VpnState.disconnected;
   String? activeNodeId;
@@ -104,6 +105,14 @@ class VpnController extends ChangeNotifier {
         proxyOnly: proxyOnlyMode,
         notificationDisconnectButtonName: 'Отключить',
       );
+      _watchdog?.cancel();
+      _watchdog = Timer(const Duration(seconds: 20), () {
+        if (state == VpnState.connecting) {
+          error = 'За 20 секунд подключение не установилось. '
+              'Нажмите «Диагностика» и пришлите текст.';
+          notifyListeners();
+        }
+      });
     } catch (e) {
       state = VpnState.disconnected;
       activeNodeId = null;
@@ -124,6 +133,38 @@ class VpnController extends ChangeNotifier {
       activeNodeId = null;
       notifyListeners();
     }
+  }
+
+  /// Диагностика для отладки: версия ядра, наличие xray.exe, журнал плагина.
+  /// Конфиг и ключи плагин в журнал не пишет.
+  Future<String> diagnostics() async {
+    final b = StringBuffer()
+      ..writeln('Платформа: ${Platform.operatingSystem} '
+          '${Platform.operatingSystemVersion}')
+      ..writeln('Режим: ${proxyOnlyMode ? 'системный прокси' : 'VPN'}')
+      ..writeln('Состояние: ${state.name}');
+    if (Platform.isWindows) {
+      final dir = File(Platform.resolvedExecutable).parent.path;
+      for (final f in ['xray\\xray.exe', 'xray\\geoip.dat', 'xray\\geosite.dat']) {
+        b.writeln('$f: ${File('$dir\\$f').existsSync() ? 'есть' : 'НЕТ'}');
+      }
+    }
+    try {
+      await _init();
+      b.writeln('Ядро: ${await _vless.getCoreVersion()}');
+    } catch (e) {
+      b.writeln('Ядро: ошибка — ${_humanError(e)}');
+    }
+    try {
+      final snap = await _vless.getProviderDebugSnapshot();
+      b
+        ..writeln('--- журнал плагина ---')
+        ..writeln(snap.toString().isEmpty ? '(пусто)' : snap);
+    } catch (e) {
+      b.writeln('Журнал: ошибка — ${_humanError(e)}');
+    }
+    if (error != null) b.writeln('Последняя ошибка: $error');
+    return b.toString();
   }
 
   Future<void> measureDelay() async {

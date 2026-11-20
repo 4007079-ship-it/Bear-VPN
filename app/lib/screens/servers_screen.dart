@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
 
 import '../import_sources.dart';
@@ -325,6 +326,35 @@ class ConnectPanel extends StatelessWidget {
   final VpnController vpn;
   const ConnectPanel({super.key, required this.store, required this.vpn});
 
+  Future<void> _showDiagnostics(BuildContext context) async {
+    final text = await vpn.diagnostics();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Диагностика'),
+        content: SizedBox(
+          width: 560,
+          height: 400,
+          child: SingleChildScrollView(
+            child: SelectableText(text,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy),
+            label: const Text('Копировать'),
+            onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+          ),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Закрыть')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -396,11 +426,21 @@ class ConnectPanel extends StatelessWidget {
                 style: active
                     ? FilledButton.styleFrom(backgroundColor: cs.error)
                     : null,
-                onPressed: busy || selected == null || (unsupported != null && !active)
-                    ? null
-                    : () => active ? vpn.disconnect() : vpn.connect(selected),
-                icon: Icon(active ? Icons.power_settings_new : Icons.play_arrow),
-                label: Text(active ? 'Отключить' : 'Подключить'),
+                onPressed: vpn.state == VpnState.connecting
+                    ? vpn.disconnect
+                    : busy || selected == null || (unsupported != null && !active)
+                        ? null
+                        : () => active ? vpn.disconnect() : vpn.connect(selected),
+                icon: Icon(vpn.state == VpnState.connecting
+                    ? Icons.close
+                    : active
+                        ? Icons.power_settings_new
+                        : Icons.play_arrow),
+                label: Text(vpn.state == VpnState.connecting
+                    ? 'Отмена'
+                    : active
+                        ? 'Отключить'
+                        : 'Подключить'),
               ),
             ),
             if (active) ...[
@@ -410,6 +450,12 @@ class ConnectPanel extends StatelessWidget {
                 child: const Text('Пинг'),
               ),
             ],
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Диагностика',
+              icon: const Icon(Icons.bug_report_outlined),
+              onPressed: () => _showDiagnostics(context),
+            ),
           ]),
         ],
       ),
