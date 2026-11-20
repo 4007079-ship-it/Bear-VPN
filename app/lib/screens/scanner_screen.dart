@@ -4,6 +4,10 @@ import 'package:smv_link_parser/smv_link_parser.dart';
 
 /// Непрерывное сканирование: ловим первый QR, который парсер распознаёт.
 /// Разрешение камеры запрашивается при открытии экрана.
+/// Возвращается вместо текста, если пользователь выбрал «Сфотографировать QR».
+const _photoFallback = '\u0000photo';
+bool isPhotoFallback(String? s) => s == _photoFallback;
+
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
 
@@ -47,6 +51,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
         title: const Text('Сканировать QR'),
         actions: [
           IconButton(
+            tooltip: 'Сфотографировать QR',
+            icon: const Icon(Icons.photo_camera_outlined),
+            onPressed: () => Navigator.pop(context, _photoFallback),
+          ),
+          IconButton(
             tooltip: 'Фонарик',
             icon: const Icon(Icons.flashlight_on_outlined),
             onPressed: () => _controller.toggleTorch(),
@@ -58,16 +67,28 @@ class _ScannerScreenState extends State<ScannerScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) => Center(
+            errorBuilder: (context, error) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  error.errorCode == MobileScannerErrorCode.permissionDenied
-                      ? 'Нет доступа к камере. Разрешите его в настройках '
-                          'приложения или используйте «QR из изображения».'
-                      : 'Камера недоступна: ${error.errorCode.name}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      error.errorCode == MobileScannerErrorCode.permissionDenied
+                          ? 'Нет доступа к камере. Разрешите его в настройках '
+                              'приложения.'
+                          : 'Камера недоступна (${error.errorCode.name})'
+                              '${error.errorDetails?.message == null ? '' : ':\n${error.errorDetails!.message}'}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.pop(context, _photoFallback),
+                      icon: const Icon(Icons.photo_camera),
+                      label: const Text('Сфотографировать QR'),
+                    ),
+                  ],
                 ),
               ),
             ),

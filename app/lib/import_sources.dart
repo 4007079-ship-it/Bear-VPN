@@ -6,6 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 import 'package:zxing2/qrcode.dart';
 
 /// Источники текста для импорта. Всё офлайн: ничего не уходит в сеть.
@@ -57,6 +58,19 @@ Future<String?> pickImageAndDecodeQr() async {
   );
   if (file == null) return null;
   final bytes = await file.readAsBytes();
+  return compute(decodeQrFromImage, bytes);
+}
+
+/// Снимок системным приложением камеры и поиск QR на фото (Android).
+/// Работает, даже если живой сканер не запускается на устройстве.
+Future<String?> takePhotoAndDecodeQr() async {
+  final photo = await ImagePicker().pickImage(
+    source: ImageSource.camera,
+    maxWidth: 2000,
+    maxHeight: 2000,
+  );
+  if (photo == null) return null;
+  final bytes = await photo.readAsBytes();
   return compute(decodeQrFromImage, bytes);
 }
 

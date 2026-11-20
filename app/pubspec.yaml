@@ -12,7 +12,11 @@ dependencies:
   smv_link_parser:
     path: ../packages/smv_link_parser
   # Камера (Android/iOS/macOS). На Windows не используется.
-  mobile_scanner: ^6.0.2
+  mobile_scanner: ^7.5.0
+  # Запасной путь сканирования: снимок системной камерой + декодирование zxing2.
+  image_picker: ^1.1.2
+  # Ядро Xray: Android — VPN (VpnService), Windows — системный прокси.
+  flutter_vless: ^1.1.7
   # Выбор файлов: Android, Windows, Linux, macOS, iOS.
   file_selector: ^1.0.3
   # Генерация QR — офлайн.

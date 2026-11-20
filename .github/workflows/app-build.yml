@@ -29,6 +29,15 @@ jobs:
         run: |
           flutter create --platforms=android --org com.smv --project-name smv_vpn .
           sed -i 's/android:label="smv_vpn"/android:label="SMV-VPN"/' android/app/src/main/AndroidManifest.xml
+          # flutter_vless: minSdk 23 и распаковка нативных библиотек (xray, tun2socks)
+          python3 - <<'PY'
+          p = 'android/app/build.gradle.kts'
+          s = open(p).read()
+          s = s.replace('minSdk = flutter.minSdkVersion', 'minSdk = maxOf(23, flutter.minSdkVersion)')
+          s = s.replace('android {', 'android {\n    packaging {\n        jniLibs {\n            useLegacyPackaging = true\n        }\n    }', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n "minSdk\|useLegacyPackaging" android/app/build.gradle.kts
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk --release
@@ -58,6 +67,12 @@ jobs:
           (Get-Content windows/runner/main.cpp) -replace 'L"smv_vpn"', 'L"SMV-VPN"' | Set-Content windows/runner/main.cpp
       - run: flutter pub get
       - run: flutter build windows --release
+      - name: Bundle Xray core (system proxy mode)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/XTLS/Xray-core/releases/latest/download/Xray-windows-64.zip -OutFile xray.zip
+          Expand-Archive xray.zip -DestinationPath build/windows/x64/runner/Release/xray -Force
+          Get-ChildItem build/windows/x64/runner/Release/xray
       - uses: actions/upload-artifact@v4
         with:
           name: SMV-VPN-windows
