@@ -43,12 +43,13 @@ class LinkParser {
       ]);
     }
 
-    if (text.startsWith('{') || text.startsWith('[')) {
-      return _parseJson(text, st, now);
-    }
-
+    // До JSON: .conf тоже начинается с '['.
     if (looksLikeWgConf(text)) {
       return _parseWgConf(text, st, now);
+    }
+
+    if (text.startsWith('{') || text.startsWith('[')) {
+      return _parseJson(text, st, now);
     }
 
     if (_clashProxiesRe.hasMatch(text)) {
