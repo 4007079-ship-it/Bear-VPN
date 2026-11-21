@@ -79,6 +79,17 @@ class WindowsProxyGuard {
     await f.writeAsString(jsonEncode(m));
   }
 
+  /// Режим «Прокси»: ядро работает, но системный прокси возвращается
+  /// к прежним настройкам пользователя (их запомнил [rememberBefore]).
+  static Future<void> restorePrevious() async {
+    final f = _markerFile;
+    if (f == null || !f.existsSync()) return;
+    try {
+      final m = jsonDecode(await f.readAsString()) as Map<String, Object?>;
+      await _write(m['prev_enable'] == true, m['prev_server'] as String?);
+    } catch (_) {}
+  }
+
   /// Вернуть настройки пользователя, если в Windows остался наш прокси.
   /// Возвращает true, если что-то пришлось исправить.
   static Future<bool> restoreIfOurs() async {

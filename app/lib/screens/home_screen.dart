@@ -7,6 +7,7 @@ import '../import_flow.dart';
 import '../nodes_store.dart';
 import '../vpn_controller.dart';
 import '../widgets/logo.dart';
+import '../widgets/mode_selector.dart';
 import '../widgets/node_info.dart';
 import '../widgets/traffic_card.dart';
 
@@ -172,14 +173,10 @@ class HomeScreen extends StatelessWidget {
                                       : 'Пинг ${vpn.delayMs} мс'),
                             ),
                           ],
-                          if (VpnController.proxyOnlyMode)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text('Режим системного прокси',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: cs.onSurfaceVariant)),
-                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: ModeSelector(vpn: vpn),
+                          ),
                           for (final (msg, isError) in [
                             if (unsupported != null &&
                                 vpn.state == VpnState.disconnected)

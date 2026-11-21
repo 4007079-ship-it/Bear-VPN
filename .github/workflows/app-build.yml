@@ -74,6 +74,11 @@ jobs:
         run: |
           Invoke-WebRequest https://github.com/XTLS/Xray-core/releases/latest/download/Xray-windows-64.zip -OutFile xray.zip
           Expand-Archive xray.zip -DestinationPath build/windows/x64/runner/Release/xray -Force
+          # Для режима VPN (TUN): tun2socks и драйвер wintun из примера плагина
+          $base = 'https://github.com/XIIIFOX/flutter_vless/raw/main/example/windows/xray'
+          foreach ($f in 'tun2socks.exe','wintun.dll') {
+            Invoke-WebRequest "$base/$f" -OutFile "build/windows/x64/runner/Release/xray/$f"
+          }
           Get-ChildItem build/windows/x64/runner/Release/xray
       - uses: actions/upload-artifact@v4
         with:

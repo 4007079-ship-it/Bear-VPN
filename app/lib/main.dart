@@ -14,6 +14,7 @@ Future<void> main() async {
   final store = NodesStore();
   await Future.wait([
     vpn.recoverOnStartup().catchError((Object _) {}),
+    vpn.loadMode(),
     store.load(),
   ]);
   runApp(SmvApp(store: store, vpn: vpn));
@@ -43,7 +44,7 @@ class _SmvAppState extends State<SmvApp> {
       onExitRequested: () async {
         // Окно должно закрываться всегда, даже если ядро не ответило.
         try {
-          await vpn.shutdown().timeout(const Duration(seconds: 4));
+          await vpn.shutdown().timeout(const Duration(seconds: 14));
         } catch (_) {}
         return AppExitResponse.exit;
       },
