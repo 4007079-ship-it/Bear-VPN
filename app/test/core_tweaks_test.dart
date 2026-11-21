@@ -99,4 +99,20 @@ void main() {
     expect(CoreSettings.fromJson({'fragment_length': 'abc'}).fragmentLength,
         '100-200');
   });
+
+  test('IPv6 выключен: правило ::/0 в blackhole первым', () {
+    final j = run(config(outbound('tcp')),
+        CoreSettings(ipv6Traffic: false, multiServer: true),
+        [outbound('tcp')]);
+    final rules = j['routing']['rules'] as List;
+    expect(rules.first['ip'], ['::/0']);
+    expect(rules.first['outboundTag'], 'block');
+    expect(rules.last['balancerTag'], balancerTag);
+  });
+
+  test('подключение к серверу по IPv4', () {
+    final j = run(config(outbound('tcp')), CoreSettings(serverIp: ServerIp.ipv4));
+    expect((j['outbounds'] as List).first['streamSettings']['sockopt']
+        ['domainStrategy'], 'UseIPv4');
+  });
 }

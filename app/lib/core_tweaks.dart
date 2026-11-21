@@ -13,6 +13,18 @@ enum BalanceStrategy {
   const BalanceStrategy(this.xray, this.label);
 }
 
+/// Каким IP подключаться к самому серверу (если у него есть и IPv4, и IPv6).
+enum ServerIp {
+  auto(null, 'Авто'),
+  ipv4('UseIPv4', 'IPv4'),
+  ipv6('UseIPv6v4', 'IPv6');
+
+  /// Значение `sockopt.domainStrategy` в Xray (null — не трогать).
+  final String? xray;
+  final String label;
+  const ServerIp(this.xray, this.label);
+}
+
 /// Включаемые настройки ядра. По умолчанию всё выключено — Bear работает
 /// как обычно.
 class CoreSettings {
@@ -30,6 +42,13 @@ class CoreSettings {
   BalanceStrategy strategy;
   int maxServers;
 
+  /// Пускать IPv6-трафик через сервер. Если у сервера нет IPv6, лучше
+  /// выключить: программы сразу перейдут на IPv4 вместо долгого ожидания.
+  bool ipv6Traffic;
+
+  /// Каким IP подключаться к серверу.
+  ServerIp serverIp;
+
   CoreSettings({
     this.fragment = false,
     this.fragmentLength = '100-200',
@@ -39,9 +58,12 @@ class CoreSettings {
     this.multiServer = false,
     this.strategy = BalanceStrategy.fastest,
     this.maxServers = 8,
+    this.ipv6Traffic = true,
+    this.serverIp = ServerIp.auto,
   });
 
-  bool get anyEnabled => fragment || xmux || multiServer;
+  bool get anyEnabled =>
+      fragment || xmux || multiServer || !ipv6Traffic || serverIp != ServerIp.auto;
 
   Map<String, Object?> toJson() => {
         'fragment': fragment,
@@ -52,6 +74,8 @@ class CoreSettings {
         'multi_server': multiServer,
         'strategy': strategy.name,
         'max_servers': maxServers,
+        'ipv6_traffic': ipv6Traffic,
+        'server_ip': serverIp.name,
       };
 
   factory CoreSettings.fromJson(Map<String, Object?> j) {
@@ -69,6 +93,10 @@ class CoreSettings {
               .firstOrNull ??
           d.strategy,
       maxServers: ((j['max_servers'] as int?) ?? d.maxServers).clamp(2, 20),
+      ipv6Traffic: j['ipv6_traffic'] as bool? ?? d.ipv6Traffic,
+      serverIp:
+          ServerIp.values.where((e) => e.name == j['server_ip']).firstOrNull ??
+              d.serverIp,
     );
   }
 
@@ -186,6 +214,34 @@ String applyCoreSettings(
       });
     }
     log?.add('fragment: ${applied > 0 ? 'включён ($applied)' : 'нет TCP-серверов'}');
+  }
+
+  if (s.serverIp.xray != null) {
+    for (final o in proxies) {
+      final ss = _map(o, 'streamSettings') ?? (o['streamSettings'] = <String, dynamic>{});
+      final sock = _map(ss, 'sockopt') ?? (ss['sockopt'] = <String, dynamic>{});
+      sock['domainStrategy'] = s.serverIp.xray;
+    }
+    log?.add('подключение к серверу: ${s.serverIp.label}');
+  }
+
+  if (!s.ipv6Traffic) {
+    final routing = _map(j, 'routing') ?? (j['routing'] = <String, dynamic>{});
+    final block = outbounds.firstWhere((o) => o['protocol'] == 'blackhole',
+        orElse: () {
+      final b = <String, dynamic>{'tag': 'block', 'protocol': 'blackhole'};
+      outbounds.add(b);
+      return b;
+    });
+    routing['rules'] = [
+      {
+        'type': 'field',
+        'ip': ['::/0'],
+        'outboundTag': block['tag'],
+      },
+      ...(routing['rules'] as List? ?? const []),
+    ];
+    log?.add('IPv6 через сервер: выключен');
   }
 
   if (useBalancer) {

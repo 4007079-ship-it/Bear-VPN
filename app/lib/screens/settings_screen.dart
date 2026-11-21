@@ -136,6 +136,34 @@ class SettingsScreen extends StatelessWidget {
                       vpn.updateSettings((s) => s.maxServers = v),
                 ),
               ],
+              const _Header('IPv6'),
+              SwitchListTile(
+                title: const Text('IPv6 через VPN'),
+                subtitle: const Text(
+                    'IPv6-трафик идёт через сервер, как и IPv4. Выключите, '
+                    'если у сервера нет IPv6 и сайты долго открываются — '
+                    'программы сразу перейдут на IPv4.'),
+                value: s.ipv6Traffic,
+                onChanged: (v) => vpn.updateSettings((s) => s.ipv6Traffic = v),
+              ),
+              ListTile(
+                title: const Text('Подключаться к серверу по'),
+                subtitle: const Text(
+                    'Если у сервера есть оба адреса. «Авто» — как решит система.'),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: SegmentedButton<ServerIp>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final v in ServerIp.values)
+                      ButtonSegment(value: v, label: Text(v.label)),
+                  ],
+                  selected: {s.serverIp},
+                  onSelectionChanged: (v) =>
+                      vpn.updateSettings((s) => s.serverIp = v.first),
+                ),
+              ),
               if (Platform.isWindows) ...[
                 const _Header('Прочее'),
                 SwitchListTile(
@@ -165,7 +193,9 @@ class SettingsScreen extends StatelessWidget {
         ..xmuxConnections = d.xmuxConnections
         ..multiServer = d.multiServer
         ..strategy = d.strategy
-        ..maxServers = d.maxServers;
+        ..maxServers = d.maxServers
+        ..ipv6Traffic = d.ipv6Traffic
+        ..serverIp = d.serverIp;
     });
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Настройки сброшены')));
