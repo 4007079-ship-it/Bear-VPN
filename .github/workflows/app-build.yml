@@ -7,7 +7,9 @@ name: app-build
 on:
   push:
     paths: ["app/**", "packages/**", ".github/workflows/app-build.yml"]
-    tags-ignore: ["**"]
+    # Только ветки: при одном фильтре по тегам GitHub перестаёт запускать
+    # сборку для веток. Релизы собираются по событию release ниже.
+    branches: ["**"]
   # Опубликованный релиз на GitHub — собрать и приложить файлы
   release:
     types: [published]
