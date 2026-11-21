@@ -151,6 +151,15 @@ class VpnController extends ChangeNotifier {
       // Пробуем по очереди: со статистикой и проверкой связи → только
       // с проверкой связи → исходный конфиг. Перед повтором обязательно
       // останавливаем сессию: плагин не меняет конфиг на лету.
+      // Сбросить сессию, оставшуюся от прошлого запуска приложения
+      // (иначе плагин отвечает «Stop the active session…» и не стартует).
+      try {
+        await _vless.stopVless().timeout(const Duration(seconds: 5));
+        _startLog.add('сброс прошлой сессии: ок');
+      } catch (e) {
+        _startLog.add('сброс прошлой сессии: ${_humanError(e)}');
+      }
+      notifyListeners();
       Object? lastError;
       var started = false;
       for (final (metrics, probe, label) in const [
@@ -161,12 +170,17 @@ class VpnController extends ChangeNotifier {
         final config =
             await _withExtras(baseConfig, metrics: metrics, probe: probe);
         try {
-          await _vless.startVless(
-            remark: node.name,
-            config: config,
-            proxyOnly: proxyOnlyMode,
-            notificationDisconnectButtonName: 'Отключить',
-          );
+          _startLog.add('$label: запуск…');
+          await _vless
+              .startVless(
+                remark: node.name,
+                config: config,
+                proxyOnly: proxyOnlyMode,
+                notificationDisconnectButtonName: 'Отключить',
+              )
+              .timeout(const Duration(seconds: 20),
+                  onTimeout: () => throw TimeoutException(
+                      'ядро не ответило за 20 с'));
           _startLog.add('$label: запущено');
           started = true;
           break;
