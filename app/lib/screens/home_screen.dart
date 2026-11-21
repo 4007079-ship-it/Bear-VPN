@@ -50,9 +50,13 @@ class HomeScreen extends StatelessWidget {
                   Row(children: [
                     const AppLogo(size: 30),
                     const SizedBox(width: 10),
-                    const Text(appName,
-                        style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w600)),
+                    const Flexible(
+                      child: Text(appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.w600)),
+                    ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -267,13 +271,10 @@ class _ConnectButtonState extends State<ConnectButton>
     final connected = widget.state == VpnState.connected;
     final busy = widget.state == VpnState.connecting ||
         widget.state == VpnState.disconnecting;
-    const green = Color(0xFF2EBD6B);
-    final fill = connected ? green : (busy ? cs.surfaceContainerHigh : Colors.white);
+    final fill = connected ? cs.primary : cs.surfaceContainerHigh;
     final iconColor = connected
-        ? Colors.white
-        : busy
-            ? cs.primary
-            : (widget.enabled ? cs.primary : cs.outline);
+        ? Colors.black
+        : (widget.enabled || busy ? cs.primary : cs.outline);
     const size = 180.0;
 
     return Semantics(
@@ -314,10 +315,13 @@ class _ConnectButtonState extends State<ConnectButton>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: fill,
+                    border: Border.all(
+                        color: cs.primary.withValues(alpha: connected ? 1 : 0.6),
+                        width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: (connected ? green : cs.primary)
-                            .withValues(alpha: 0.35),
+                        color: cs.primary
+                            .withValues(alpha: connected ? 0.45 : 0.2),
                         blurRadius: 40,
                         spreadRadius: 2,
                       ),

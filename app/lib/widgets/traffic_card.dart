@@ -34,9 +34,9 @@ class TrafficCard extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 6),
-          line(Icons.arrow_upward, Colors.greenAccent.shade400, up),
+          line(Icons.arrow_upward, cs.primary, up),
           const SizedBox(height: 2),
-          line(Icons.arrow_downward, Colors.redAccent.shade100, down),
+          line(Icons.arrow_downward, Colors.white70, down),
         ],
       ),
     );

@@ -69,9 +69,13 @@ class _AppShellState extends State<AppShell> {
                   child: Row(children: [
                     AppLogo(size: 28),
                     SizedBox(width: 10),
-                    Text(appName,
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700)),
+                    Flexible(
+                      child: Text(appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.w700)),
+                    ),
                   ]),
                 ),
                 for (var i = 0; i < _items.length; i++)

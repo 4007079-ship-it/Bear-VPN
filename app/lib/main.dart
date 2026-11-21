@@ -49,7 +49,8 @@ class _SmvAppState extends State<SmvApp> {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF3DDC97);
+    const seed = Color(0xFFFF7A00);
+    const black = Color(0xFF0A0A0A);
     return MaterialApp(
       title: appName,
       debugShowCheckedModeBanner: false,
@@ -61,8 +62,21 @@ class _SmvAppState extends State<SmvApp> {
         colorScheme: ColorScheme.fromSeed(
           seedColor: seed,
           brightness: Brightness.dark,
-        ).copyWith(primary: seed, surface: const Color(0xFF101316)),
-        scaffoldBackgroundColor: const Color(0xFF101316),
+        ).copyWith(
+          primary: seed,
+          onPrimary: Colors.black,
+          surface: black,
+          surfaceContainerLowest: black,
+          surfaceContainerLow: const Color(0xFF121212),
+          surfaceContainer: const Color(0xFF161616),
+          surfaceContainerHigh: const Color(0xFF1C1C1C),
+          surfaceContainerHighest: const Color(0xFF262626),
+          secondaryContainer: const Color(0xFF3A2412),
+          onSecondaryContainer: const Color(0xFFFF9A3C),
+          outline: const Color(0xFF5A5A5A),
+          outlineVariant: const Color(0xFF2E2E2E),
+        ),
+        scaffoldBackgroundColor: black,
         useMaterial3: true,
       ),
       themeMode: ThemeMode.dark,

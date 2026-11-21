@@ -65,7 +65,7 @@ class ServersScreen extends StatelessWidget {
                         ]),
                       ),
                       trailing: isActive
-                          ? const Icon(Icons.bolt, color: Colors.green)
+                          ? Icon(Icons.bolt, color: Theme.of(context).colorScheme.primary)
                           : hasErrors
                               ? Icon(Icons.error_outline,
                                   color: Theme.of(context).colorScheme.error)
