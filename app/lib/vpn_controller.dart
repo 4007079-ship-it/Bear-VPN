@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
+import 'core_tweaks.dart';
 import 'windows_proxy_guard.dart';
 
 enum VpnState { disconnected, connecting, connected, disconnecting }
@@ -179,7 +179,38 @@ class VpnController extends ChangeNotifier {
   static const _prefs = FlutterSecureStorage(
       aOptions: AndroidOptions(encryptedSharedPreferences: true));
 
+  /// Включаемые настройки ядра (экран «Настройки»).
+  CoreSettings settings = CoreSettings();
+  static const _settingsKey = 'bear.core.v1';
+
+  /// Откуда брать серверы для режима «несколько серверов»: задаёт main.dart
+  /// (серверы той же подписки или того же списка, что и выбранный).
+  List<ProxyNode> Function(ProxyNode selected)? poolFor;
+
+  /// Сколько серверов в работе при последнем подключении.
+  int activeServers = 1;
+
+  void updateSettings(void Function(CoreSettings s) change) {
+    change(settings);
+    notifyListeners();
+    _prefs
+        .write(key: _settingsKey, value: jsonEncode(settings.toJson()))
+        .catchError((Object _) {});
+  }
+
+  /// Windows VPN (TUN): маршруты исключают только адрес основного сервера,
+  /// поэтому несколько серверов там пока не включаем.
+  bool get multiServerAvailable =>
+      !(Platform.isWindows && mode == ConnectionMode.vpn);
+
   Future<void> loadMode() async {
+    try {
+      final raw = await _prefs.read(key: _settingsKey);
+      if (raw != null) {
+        settings = CoreSettings.fromJson(
+            (jsonDecode(raw) as Map).cast<String, Object?>());
+      }
+    } catch (_) {}
     try {
       final v = await _prefs.read(key: _modeKey);
       final m = ConnectionMode.values.where((e) => e.name == v).firstOrNull;
@@ -255,8 +286,8 @@ class VpnController extends ChangeNotifier {
 
       await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
-      final baseConfig = parsed.getFullConfiguration();
       _startLog.clear();
+      final baseConfig = _applySettings(node, parsed.getFullConfiguration());
       if (proxyOnlyMode) {
         await _connectWindows(node, baseConfig);
         return;
@@ -345,6 +376,31 @@ class VpnController extends ChangeNotifier {
 
   /// Windows: плагин может так и не завершить startVless, хотя прокси уже
   /// работает. Поэтому не ждём его, а проверяем связь сами.
+  /// Применить включённые настройки; при любой ошибке — исходный конфиг.
+  String _applySettings(ProxyNode node, String config) {
+    activeServers = 1;
+    if (!settings.anyEnabled) return config;
+    final extra = <Map<String, dynamic>>[];
+    if (settings.multiServer && multiServerAvailable && poolFor != null) {
+      for (final n in poolFor!(node)) {
+        if (n.id == node.id || unsupportedReason(n) != null) continue;
+        if (extra.length >= settings.maxServers - 1) break;
+        try {
+          final c = jsonDecode(FlutterVless.parseFromURL(nodeToUri(n))
+              .getFullConfiguration()) as Map;
+          final o = (c['outbounds'] as List).first as Map;
+          extra.add(o.cast<String, dynamic>());
+        } catch (_) {
+          _startLog.add('несколько серверов: «${n.name}» пропущен');
+        }
+      }
+    }
+    final out = applyCoreSettings(config, settings,
+        extraProxies: extra, log: _startLog);
+    activeServers = extra.length + 1;
+    return out;
+  }
+
   Future<void> _connectWindows(ProxyNode node, String baseConfig) async {
     final vpnMode = mode == ConnectionMode.vpn;
     if (vpnMode && !await isWindowsAdmin()) {
@@ -689,6 +745,7 @@ class VpnController extends ChangeNotifier {
       ..writeln('Платформа: ${Platform.operatingSystem} '
           '${Platform.operatingSystemVersion}')
       ..writeln('Режим: ${mode.label}')
+      ..writeln('Настройки: ${jsonEncode(settings.toJson())}')
       ..writeln('Состояние: ${state.name}');
     if (Platform.isWindows) {
       final dir = File(Platform.resolvedExecutable).parent.path;

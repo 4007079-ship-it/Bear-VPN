@@ -15,6 +15,16 @@ Future<void> main() async {
   migrateWindowsData();
   final vpn = VpnController();
   final store = NodesStore();
+  // Несколько серверов: берём серверы той же подписки (или ручного списка).
+  vpn.poolFor = (selected) {
+    final sub = store.subscriptionOf(selected);
+    return sub != null
+        ? store.nodesOf(sub)
+        : [
+            for (final n in store.nodes)
+              if (store.subscriptionOf(n) == null) n
+          ];
+  };
   await Future.wait([
     vpn.recoverOnStartup().catchError((Object _) {}),
     vpn.loadMode(),

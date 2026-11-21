@@ -61,20 +61,6 @@ class _LogsScreenState extends State<LogsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (VpnController.proxyOnlyMode)
-                  ListenableBuilder(
-                    listenable: widget.vpn,
-                    builder: (context, _) => SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: widget.vpn.windowsStats,
-                      onChanged: widget.vpn.setWindowsStats,
-                      title: const Text(
-                          'Экспериментально: статистика трафика'),
-                      subtitle: const Text(
-                          'Включите и переподключитесь. Если подключение '
-                          'зависнет — выключите и пришлите логи.'),
-                    ),
-                  ),
                 SelectableText(
                   _text!,
                   style:

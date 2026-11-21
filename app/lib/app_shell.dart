@@ -4,6 +4,7 @@ import 'nodes_store.dart';
 import 'screens/home_screen.dart';
 import 'screens/logs_screen.dart';
 import 'screens/servers_screen.dart';
+import 'screens/settings_screen.dart';
 import 'vpn_controller.dart';
 import 'widgets/logo.dart';
 import 'widgets/traffic_card.dart';
@@ -24,6 +25,7 @@ class _AppShellState extends State<AppShell> {
   static const _items = [
     (Icons.power_settings_new, 'Главная'),
     (Icons.dns_outlined, 'Серверы'),
+    (Icons.tune, 'Настройки'),
     (Icons.article_outlined, 'Логи'),
     (Icons.info_outline, 'О программе'),
   ];
@@ -32,7 +34,8 @@ class _AppShellState extends State<AppShell> {
         0 => HomeScreen(
             store: widget.store, vpn: widget.vpn, showTraffic: !wide),
         1 => ServersScreen(store: widget.store, vpn: widget.vpn),
-        2 => LogsScreen(vpn: widget.vpn),
+        2 => SettingsScreen(vpn: widget.vpn),
+        3 => LogsScreen(vpn: widget.vpn),
         _ => const AboutScreen(),
       };
 

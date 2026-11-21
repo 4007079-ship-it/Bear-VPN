@@ -53,6 +53,12 @@ class ModeSelector extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
         ),
+        if (vpn.state == VpnState.connected && vpn.activeServers > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('Серверов в работе: ${vpn.activeServers}',
+                style: TextStyle(fontSize: 12, color: cs.primary)),
+          ),
         if (showPorts)
           Padding(
             padding: const EdgeInsets.only(top: 6),
