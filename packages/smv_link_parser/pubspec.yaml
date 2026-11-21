@@ -1,0 +1,17 @@
+name: smv_link_parser
+description: >-
+  SMV.LinkParser — офлайн-парсер ссылок, ключей и подписок для SMV-VPN
+  (vless, vmess, hysteria2, tuic, trojan, shadowsocks, socks, http,
+  base64-подписки, sing-box JSON, Xray JSON, Clash YAML).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  yaml: ^3.1.2
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.0

@@ -1,0 +1,94 @@
+name: app-build
+
+# Тестовые сборки приложения: APK для Android и папка с .exe для Windows.
+# Платформенные каталоги (android/, windows/) генерируются flutter create
+# при сборке; когда понадобятся свои настройки манифестов — закоммитим их.
+
+on:
+  push:
+    paths: ["app/**", "packages/**", ".github/workflows/app-build.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        run: |
+          flutter create --platforms=android --org com.smv --project-name smv_vpn .
+          sed -i 's/android:label="smv_vpn"/android:label="Bear VPN"/' android/app/src/main/AndroidManifest.xml
+          cp -r branding/android/res/. android/app/src/main/res/
+          # flutter_vless: minSdk 23 и распаковка нативных библиотек (xray, tun2socks)
+          python3 - <<'PY'
+          p = 'android/app/build.gradle.kts'
+          s = open(p).read()
+          s = s.replace('minSdk = flutter.minSdkVersion', 'minSdk = maxOf(23, flutter.minSdkVersion)')
+          s = s.replace('android {', 'android {\n    packaging {\n        jniLibs {\n            useLegacyPackaging = true\n        }\n    }', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n "minSdk\|useLegacyPackaging" android/app/build.gradle.kts
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter build apk --release
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/Bear-VPN-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bear-VPN-android
+          path: app/build/Bear-VPN-test.apk
+          retention-days: 30
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        shell: pwsh
+        run: |
+          flutter create --platforms=windows --org com.smv --project-name smv_vpn .
+          (Get-Content windows/runner/main.cpp) -replace 'L"smv_vpn"', 'L"Bear VPN"' | Set-Content windows/runner/main.cpp
+          # Имя файла BearVPN.exe; в свойствах файла — Bear VPN, разработчик SMV
+          (Get-Content windows/CMakeLists.txt) -replace 'set\(BINARY_NAME "smv_vpn"\)', 'set(BINARY_NAME "BearVPN")' | Set-Content windows/CMakeLists.txt
+          $rc = Get-Content windows/runner/Runner.rc -Raw
+          $rc = $rc.Replace('com.smv', 'SMV').Replace('smv_vpn.exe', 'BearVPN.exe').Replace('"smv_vpn"', '"Bear VPN"')
+          Set-Content windows/runner/Runner.rc $rc -Encoding utf8
+          Select-String -Path windows/CMakeLists.txt -Pattern BINARY_NAME | Select-Object -First 1
+          Select-String -Path windows/runner/Runner.rc -Pattern 'VALUE "'
+          Copy-Item branding/windows/app_icon.ico windows/runner/resources/app_icon.ico -Force
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Bundle Xray core (system proxy mode)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/XTLS/Xray-core/releases/latest/download/Xray-windows-64.zip -OutFile xray.zip
+          Expand-Archive xray.zip -DestinationPath build/windows/x64/runner/Release/xray -Force
+          # Для режима VPN (TUN): tun2socks и драйвер wintun из примера плагина
+          $base = 'https://github.com/XIIIFOX/flutter_vless/raw/main/example/windows/xray'
+          foreach ($f in 'tun2socks.exe','wintun.dll') {
+            Invoke-WebRequest "$base/$f" -OutFile "build/windows/x64/runner/Release/xray/$f"
+          }
+          Get-ChildItem build/windows/x64/runner/Release/xray
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bear-VPN-windows
+          path: app/build/windows/x64/runner/Release/
+          retention-days: 30

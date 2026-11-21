@@ -1,0 +1,235 @@
+import 'dart:convert';
+
+/// Способ распределения трафика между несколькими серверами.
+enum BalanceStrategy {
+  /// Всё через сервер с наименьшей задержкой, остальные — запасные.
+  fastest('leastPing', 'Самый быстрый'),
+
+  /// Соединения по очереди раскладываются по всем живым серверам.
+  spread('roundRobin', 'Поровну');
+
+  final String xray;
+  final String label;
+  const BalanceStrategy(this.xray, this.label);
+}
+
+/// Включаемые настройки ядра. По умолчанию всё выключено — Bear работает
+/// как обычно.
+class CoreSettings {
+  /// Резать первый пакет TLS (ClientHello) на куски.
+  bool fragment;
+  String fragmentLength;
+  String fragmentInterval;
+
+  /// XHTTP: несколько параллельных соединений к серверу (xmux).
+  bool xmux;
+  int xmuxConnections;
+
+  /// Несколько серверов одновременно (балансировщик Xray).
+  bool multiServer;
+  BalanceStrategy strategy;
+  int maxServers;
+
+  CoreSettings({
+    this.fragment = false,
+    this.fragmentLength = '100-200',
+    this.fragmentInterval = '10-20',
+    this.xmux = false,
+    this.xmuxConnections = 6,
+    this.multiServer = false,
+    this.strategy = BalanceStrategy.fastest,
+    this.maxServers = 8,
+  });
+
+  bool get anyEnabled => fragment || xmux || multiServer;
+
+  Map<String, Object?> toJson() => {
+        'fragment': fragment,
+        'fragment_length': fragmentLength,
+        'fragment_interval': fragmentInterval,
+        'xmux': xmux,
+        'xmux_connections': xmuxConnections,
+        'multi_server': multiServer,
+        'strategy': strategy.name,
+        'max_servers': maxServers,
+      };
+
+  factory CoreSettings.fromJson(Map<String, Object?> j) {
+    final d = CoreSettings();
+    return CoreSettings(
+      fragment: j['fragment'] as bool? ?? d.fragment,
+      fragmentLength: _range(j['fragment_length']) ?? d.fragmentLength,
+      fragmentInterval: _range(j['fragment_interval']) ?? d.fragmentInterval,
+      xmux: j['xmux'] as bool? ?? d.xmux,
+      xmuxConnections:
+          ((j['xmux_connections'] as int?) ?? d.xmuxConnections).clamp(1, 32),
+      multiServer: j['multi_server'] as bool? ?? d.multiServer,
+      strategy: BalanceStrategy.values
+              .where((e) => e.name == j['strategy'])
+              .firstOrNull ??
+          d.strategy,
+      maxServers: ((j['max_servers'] as int?) ?? d.maxServers).clamp(2, 20),
+    );
+  }
+
+  /// Диапазон вида «100-200» или «50» — иначе null.
+  static String? _range(Object? v) {
+    if (v is! String) return null;
+    final t = v.trim();
+    return RegExp(r'^\d{1,4}(-\d{1,4})?$').hasMatch(t) ? t : null;
+  }
+
+  static bool isValidRange(String v) => _range(v) != null;
+}
+
+/// Теги, которые Bear добавляет в конфиг.
+const fragmentTag = 'bear_fragment';
+const balancerTag = 'bear_auto';
+
+/// Применить настройки к конфигу Xray, собранному для одного сервера.
+///
+/// [extraProxies] — первые outbound'ы конфигов других серверов (для режима
+/// нескольких серверов). Им даются теги `proxy-2`, `proxy-3`…; балансировщик
+/// выбирает по префиксу `proxy`.
+///
+/// Если конфиг не удалось разобрать, он возвращается без изменений и
+/// в [log] пишется причина.
+String applyCoreSettings(
+  String config,
+  CoreSettings s, {
+  List<Map<String, dynamic>> extraProxies = const [],
+  List<String>? log,
+}) {
+  if (!s.anyEnabled) return config;
+  final Map<String, dynamic> j;
+  try {
+    j = (jsonDecode(config) as Map).cast<String, dynamic>();
+  } catch (e) {
+    log?.add('настройки: конфиг не разобран, применён без изменений');
+    return config;
+  }
+  final outbounds = [
+    for (final o in (j['outbounds'] as List? ?? const []))
+      if (o is Map) o.cast<String, dynamic>()
+  ];
+  if (outbounds.isEmpty) return config;
+
+  // Несколько серверов: добавить outbound'ы остальных серверов сразу после
+  // основного.
+  final useBalancer = s.multiServer && extraProxies.isNotEmpty;
+  if (useBalancer) {
+    final first = outbounds.first;
+    first['tag'] = 'proxy';
+    var n = 2;
+    final extra = <Map<String, dynamic>>[];
+    for (final o in extraProxies) {
+      final copy = (jsonDecode(jsonEncode(o)) as Map).cast<String, dynamic>();
+      copy['tag'] = 'proxy-${n++}';
+      extra.add(copy);
+    }
+    outbounds.insertAll(1, extra);
+  }
+
+  final proxies = [
+    for (final o in outbounds)
+      if (!const {'freedom', 'blackhole', 'dns'}.contains(o['protocol'])) o
+  ];
+
+  if (s.xmux) {
+    var applied = 0;
+    for (final o in proxies) {
+      final ss = _map(o, 'streamSettings');
+      if (ss == null || ss['network'] != 'xhttp') continue;
+      final xs = _map(ss, 'xhttpSettings') ?? (ss['xhttpSettings'] = <String, dynamic>{});
+      final xmux = {
+        'maxConcurrency': 0,
+        'maxConnections': s.xmuxConnections,
+        'cMaxReuseTimes': 0,
+        'hMaxRequestTimes': '600-900',
+        'hMaxReusableSecs': '1800-3000',
+        'hKeepAlivePeriod': 0,
+      };
+      xs['xmux'] = xmux;
+      final extra = _map(xs, 'extra');
+      if (extra != null) extra['xmux'] = xmux;
+      applied++;
+    }
+    log?.add('xmux: ${applied > 0 ? 'включён ($applied)' : 'нет серверов XHTTP'}');
+  }
+
+  if (s.fragment) {
+    var applied = 0;
+    for (final o in proxies) {
+      final ss = _map(o, 'streamSettings') ?? (o['streamSettings'] = <String, dynamic>{});
+      final net = (ss['network'] as String?) ?? 'tcp';
+      // Фрагментация — только для TCP: Hysteria2, QUIC, KCP идут по UDP.
+      if (o['protocol'] == 'hysteria' ||
+          o['protocol'] == 'hysteria2' ||
+          const {'hysteria', 'quic', 'kcp', 'mkcp'}.contains(net)) {
+        continue;
+      }
+      final sock = _map(ss, 'sockopt') ?? (ss['sockopt'] = <String, dynamic>{});
+      sock['dialerProxy'] = fragmentTag;
+      applied++;
+    }
+    if (applied > 0) {
+      outbounds.add({
+        'tag': fragmentTag,
+        'protocol': 'freedom',
+        'settings': {
+          'fragment': {
+            'packets': 'tlshello',
+            'length': s.fragmentLength,
+            'interval': s.fragmentInterval,
+          },
+        },
+      });
+    }
+    log?.add('fragment: ${applied > 0 ? 'включён ($applied)' : 'нет TCP-серверов'}');
+  }
+
+  if (useBalancer) {
+    final routing = _map(j, 'routing') ?? (j['routing'] = <String, dynamic>{});
+    final balancers = [
+      for (final b in (routing['balancers'] as List? ?? const []))
+        if (b is Map && b['tag'] != balancerTag) b
+    ]..add({
+        'tag': balancerTag,
+        'selector': ['proxy'],
+        'strategy': {'type': s.strategy.xray},
+        'fallbackTag': 'proxy',
+      });
+    routing['balancers'] = balancers;
+    final rules = [
+      for (final r in (routing['rules'] as List? ?? const []))
+        if (r is Map && r['balancerTag'] != balancerTag) r
+    ]..add({
+        'type': 'field',
+        'network': 'tcp,udp',
+        'balancerTag': balancerTag,
+      });
+    routing['rules'] = rules;
+    j['observatory'] = {
+      'subjectSelector': ['proxy'],
+      'probeUrl': 'https://www.gstatic.com/generate_204',
+      'probeInterval': '30s',
+      'enableConcurrency': true,
+    };
+    log?.add('несколько серверов: ${extraProxies.length + 1}, '
+        'способ: ${s.strategy.label}');
+  }
+
+  j['outbounds'] = outbounds;
+  return const JsonEncoder.withIndent('  ').convert(j);
+}
+
+Map<String, dynamic>? _map(Map<String, dynamic> m, String key) {
+  final v = m[key];
+  if (v is Map<String, dynamic>) return v;
+  if (v is Map) {
+    final c = v.cast<String, dynamic>();
+    m[key] = c;
+    return c;
+  }
+  return null;
+}

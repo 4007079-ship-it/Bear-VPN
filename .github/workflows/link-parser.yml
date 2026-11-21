@@ -1,0 +1,23 @@
+name: smv_link_parser
+
+on:
+  push:
+    paths: ["packages/smv_link_parser/**", ".github/workflows/link-parser.yml"]
+  pull_request:
+    paths: ["packages/smv_link_parser/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/smv_link_parser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed lib test || true
+      - run: dart analyze --fatal-infos
+      - run: dart test --reporter expanded

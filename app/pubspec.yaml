@@ -1,0 +1,42 @@
+name: smv_vpn
+description: Bear VPN — клиент (разработчик SMV).
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  smv_link_parser:
+    path: ../packages/smv_link_parser
+  # Камера (Android/iOS/macOS). На Windows не используется.
+  mobile_scanner: ^7.5.0
+  # Запасной путь сканирования: снимок системной камерой + декодирование zxing2.
+  image_picker: ^1.1.2
+  # Ядро Xray: Android — VPN (VpnService), Windows — системный прокси.
+  flutter_vless: ^1.1.7
+  # Хранение серверов с ключами: Android Keystore, Windows DPAPI.
+  flutter_secure_storage: ^9.2.2
+  # Значок в области уведомлений Windows.
+  tray_manager: ^0.2.3
+  # Выбор файлов: Android, Windows, Linux, macOS, iOS.
+  file_selector: ^1.0.3
+  # Генерация QR — офлайн.
+  qr_flutter: ^4.1.0
+  # Декодирование QR из изображения — чистый Dart, офлайн, все платформы.
+  zxing2: ^0.2.3
+  image: ^4.1.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/tray_on.ico
+    - assets/tray_off.ico

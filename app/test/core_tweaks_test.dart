@@ -1,0 +1,102 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smv_vpn/core_tweaks.dart';
+
+Map<String, dynamic> outbound(String network, {String protocol = 'vless'}) => {
+      'tag': 'proxy',
+      'protocol': protocol,
+      'settings': {'vnext': []},
+      'streamSettings': {
+        'network': network,
+        'security': 'reality',
+        if (network == 'xhttp') 'xhttpSettings': {'path': '/x'},
+      },
+    };
+
+String config(Map<String, dynamic> proxy) => jsonEncode({
+      'inbounds': [
+        {'tag': 'socks', 'protocol': 'socks', 'port': 10808}
+      ],
+      'outbounds': [
+        proxy,
+        {'tag': 'direct', 'protocol': 'freedom'},
+        {'tag': 'block', 'protocol': 'blackhole'},
+      ],
+      'routing': {'domainStrategy': 'AsIs', 'rules': [], 'balancers': []},
+    });
+
+Map<String, dynamic> run(String c, CoreSettings s,
+        [List<Map<String, dynamic>> extra = const []]) =>
+    jsonDecode(applyCoreSettings(c, s, extraProxies: extra))
+        as Map<String, dynamic>;
+
+void main() {
+  test('по умолчанию конфиг не меняется', () {
+    final c = config(outbound('tcp'));
+    expect(applyCoreSettings(c, CoreSettings()), c);
+  });
+
+  test('fragment: dialerProxy и freedom-outbound', () {
+    final j = run(config(outbound('tcp')), CoreSettings(fragment: true));
+    final outs = j['outbounds'] as List;
+    expect(outs.first['streamSettings']['sockopt']['dialerProxy'], fragmentTag);
+    final f = outs.firstWhere((o) => o['tag'] == fragmentTag);
+    expect(f['settings']['fragment']['packets'], 'tlshello');
+    // direct не трогаем
+    expect(outs.firstWhere((o) => o['tag'] == 'direct')['streamSettings'],
+        isNull);
+  });
+
+  test('fragment не применяется к Hysteria2', () {
+    final j = run(config(outbound('hysteria', protocol: 'hysteria')),
+        CoreSettings(fragment: true));
+    final outs = j['outbounds'] as List;
+    expect(outs.any((o) => o['tag'] == fragmentTag), isFalse);
+  });
+
+  test('xmux только для xhttp', () {
+    final j = run(config(outbound('xhttp')), CoreSettings(xmux: true));
+    final xmux =
+        (j['outbounds'] as List).first['streamSettings']['xhttpSettings']['xmux'];
+    expect(xmux['maxConnections'], 6);
+    expect(xmux['maxConcurrency'], 0);
+    final t = run(config(outbound('tcp')), CoreSettings(xmux: true));
+    expect((t['outbounds'] as List).first['streamSettings']['xhttpSettings'],
+        isNull);
+  });
+
+  test('несколько серверов: теги, балансировщик, observatory', () {
+    final j = run(config(outbound('tcp')), CoreSettings(multiServer: true),
+        [outbound('xhttp'), outbound('tcp')]);
+    final tags = [for (final o in j['outbounds'] as List) o['tag']];
+    expect(tags.take(3), ['proxy', 'proxy-2', 'proxy-3']);
+    expect(tags, containsAll(['direct', 'block']));
+    final b = (j['routing']['balancers'] as List).single;
+    expect(b['tag'], balancerTag);
+    expect(b['strategy']['type'], 'leastPing');
+    expect((j['routing']['rules'] as List).last['balancerTag'], balancerTag);
+    expect(j['observatory']['subjectSelector'], ['proxy']);
+  });
+
+  test('несколько серверов без других серверов — без балансировщика', () {
+    final j = run(config(outbound('tcp')), CoreSettings(multiServer: true));
+    expect(j['routing']['balancers'], isEmpty);
+    expect(j['observatory'], isNull);
+  });
+
+  test('настройки сохраняются и читаются', () {
+    final s = CoreSettings(
+        fragment: true,
+        fragmentLength: '50-80',
+        multiServer: true,
+        strategy: BalanceStrategy.spread);
+    final r = CoreSettings.fromJson(
+        jsonDecode(jsonEncode(s.toJson())) as Map<String, Object?>);
+    expect(r.fragment, isTrue);
+    expect(r.fragmentLength, '50-80');
+    expect(r.strategy, BalanceStrategy.spread);
+    expect(CoreSettings.fromJson({'fragment_length': 'abc'}).fragmentLength,
+        '100-200');
+  });
+}

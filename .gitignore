@@ -1,0 +1,20 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+packages/**/pubspec.lock
+coverage/
+.idea/
+*.iml
+.DS_Store
+
+# Платформенные каталоги приложения генерируются в CI (flutter create)
+/app/android/
+/app/ios/
+/app/windows/
+/app/linux/
+/app/macos/
+/app/web/
+/app/.metadata
+/app/.flutter-plugins
+/app/.flutter-plugins-dependencies
