@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ class SmvApp extends StatefulWidget {
 
 class _SmvAppState extends State<SmvApp> {
   late final AppLifecycleListener _lifecycle;
+  Timer? _subsTimer;
 
   NodesStore get store => widget.store;
   VpnController get vpn => widget.vpn;
@@ -39,6 +41,12 @@ class _SmvAppState extends State<SmvApp> {
   @override
   void initState() {
     super.initState();
+    // Подписки: проверить при запуске и затем раз в 15 минут.
+    if (store.persist) {
+      unawaited(store.refreshDue());
+      _subsTimer = Timer.periodic(
+          const Duration(minutes: 15), (_) => unawaited(store.refreshDue()));
+    }
     // Закрытие окна: сначала отключаемся и возвращаем настройки прокси.
     _lifecycle = AppLifecycleListener(
       onExitRequested: () async {
@@ -53,6 +61,7 @@ class _SmvAppState extends State<SmvApp> {
 
   @override
   void dispose() {
+    _subsTimer?.cancel();
     _lifecycle.dispose();
     super.dispose();
   }

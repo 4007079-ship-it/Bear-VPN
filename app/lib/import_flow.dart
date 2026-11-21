@@ -5,6 +5,7 @@ import 'import_sources.dart';
 import 'nodes_store.dart';
 import 'screens/preview_screen.dart';
 import 'screens/scanner_screen.dart';
+import 'subscription.dart';
 import 'widgets/node_info.dart';
 
 /// Меню «Добавить»: буфер, ручной ввод, QR (камера/фото/изображение), файл.
@@ -32,6 +33,12 @@ class ImportFlow {
                   : 'В буфере нет ссылки или ключа'),
               enabled: clipUseful,
               onTap: () => Navigator.pop(context, _AddAction.clipboard),
+            ),
+            ListTile(
+              leading: const Icon(Icons.rss_feed),
+              title: const Text('Подписка по ссылке'),
+              subtitle: const Text('Список серверов обновляется сам'),
+              onTap: () => Navigator.pop(context, _AddAction.subscription),
             ),
             ListTile(
               leading: const Icon(Icons.edit_note),
@@ -74,6 +81,12 @@ class ImportFlow {
       switch (action) {
         case _AddAction.clipboard:
           await _openPreview(context, store, clip!, SourceType.uri);
+        case _AddAction.subscription:
+          final fromClip = clipResult?.subscriptionUrls.firstOrNull;
+          final url = await _subscriptionInput(context, fromClip);
+          if (url != null && context.mounted) {
+            await addSubscription(context, store, url);
+          }
         case _AddAction.manual:
           final text = await _manualInput(context);
           if (text != null && context.mounted) {
@@ -155,21 +168,26 @@ class ImportFlow {
       String text, SourceType st) async {
     final result = const LinkParser().parse(text, sourceType: st);
     if (result.nodes.isEmpty && result.subscriptionUrls.isNotEmpty) {
-      await showDialog<void>(
+      final url = result.subscriptionUrls.first;
+      final ok = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Это ссылка подписки'),
-          content: Text(
-              '${result.subscriptionUrls.first}\n\nЗагрузка подписок по URL '
-              'появится в следующей сборке. Сейчас можно вставить содержимое '
-              'подписки (base64 или список ссылок).'),
+          content: Text('${_shortUrl(url)}\n\nЗагрузить список серверов и '
+              'обновлять его автоматически?'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Отмена')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Добавить подписку')),
           ],
         ),
       );
+      if (ok == true && context.mounted) {
+        await addSubscription(context, store, url);
+      }
       return;
     }
     if (result.nodes.isEmpty) {
@@ -187,6 +205,78 @@ class ImportFlow {
     }
   }
 
+  /// Ссылка без токена — для показа на экране.
+  static String _shortUrl(String url) {
+    final u = Uri.tryParse(url);
+    return u == null ? url : '${u.scheme}://${u.host}/…';
+  }
+
+  static Future<String?> _subscriptionInput(
+      BuildContext context, String? initial) {
+    final controller = TextEditingController(text: initial ?? '');
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Подписка по ссылке'),
+        content: SizedBox(
+          width: 520,
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'https://…',
+              helperText: 'Ссылку выдаёт панель или продавец VPN',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Загрузить')),
+        ],
+      ),
+    );
+  }
+
+  /// Загрузить подписку с индикатором и сообщить результат.
+  static Future<void> addSubscription(
+      BuildContext context, NodesStore store, String url) async {
+    if (url.isEmpty) return;
+    if (store.hasSubscriptionUrl(url)) {
+      _snack(context, 'Эта подписка уже добавлена');
+      return;
+    }
+    final nav = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [
+          SizedBox(
+              width: 24, height: 24, child: CircularProgressIndicator()),
+          SizedBox(width: 16),
+          Expanded(child: Text('Загружаю подписку…')),
+        ]),
+      ),
+    );
+    try {
+      final sub = await store.addSubscription(url);
+      nav.pop();
+      if (context.mounted) {
+        final n = store.nodesOf(sub).length;
+        _snack(context, 'Подписка «${sub.name}»: серверов — $n');
+      }
+    } catch (e) {
+      nav.pop();
+      if (context.mounted) _snack(context, subscriptionError(e));
+    }
+  }
+
   static void _snack(BuildContext context, String text) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -194,4 +284,4 @@ class ImportFlow {
   }
 }
 
-enum _AddAction { clipboard, manual, camera, photo, image, file }
+enum _AddAction { clipboard, subscription, manual, camera, photo, image, file }
