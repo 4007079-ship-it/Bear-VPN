@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
@@ -401,14 +403,31 @@ class ConnectPanel extends StatelessWidget {
             style: TextStyle(color: cs.onSurfaceVariant),
           ),
           if (active) ...[
-            const SizedBox(height: 6),
-            Text(
-              '${formatDuration(vpn.duration)}   '
-              '↑ ${formatBytes(vpn.uploadSpeed)}/с  ↓ ${formatBytes(vpn.downloadSpeed)}/с   '
-              'всего ${formatBytes(vpn.upload + vpn.download)}'
-              '${vpn.delayMs == null ? '' : vpn.delayMs! < 0 ? '   задержка: ошибка' : '   задержка: ${vpn.delayMs} мс'}',
-              style: const TextStyle(fontSize: 13),
-            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              _Stat(
+                icon: Icons.arrow_downward,
+                label: 'Загрузка',
+                value: '${formatBytes(vpn.downloadSpeed)}/с',
+                sub: 'всего ${formatBytes(vpn.download)}',
+              ),
+              _Stat(
+                icon: Icons.arrow_upward,
+                label: 'Отдача',
+                value: '${formatBytes(vpn.uploadSpeed)}/с',
+                sub: 'всего ${formatBytes(vpn.upload)}',
+              ),
+              _Stat(
+                icon: Icons.timer_outlined,
+                label: 'Время',
+                value: formatDuration(vpn.duration),
+                sub: vpn.delayMs == null
+                    ? 'пинг —'
+                    : vpn.delayMs! < 0
+                        ? 'пинг: ошибка'
+                        : 'пинг ${vpn.delayMs} мс',
+              ),
+            ]),
           ],
           if (unsupported != null && !active) ...[
             const SizedBox(height: 6),
@@ -461,6 +480,44 @@ class ConnectPanel extends StatelessWidget {
               onPressed: () => _showDiagnostics(context),
             ),
           ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String sub;
+  const _Stat(
+      {required this.icon,
+      required this.label,
+      required this.value,
+      required this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 14, color: cs.primary),
+            const SizedBox(width: 4),
+            Text(label,
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          ]),
+          const SizedBox(height: 2),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()])),
+          Text(sub,
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
         ],
       ),
     );

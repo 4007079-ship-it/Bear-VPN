@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -103,10 +104,16 @@ class VpnController extends ChangeNotifier {
     state = next;
     final pd = _i(s.duration);
     if (pd > 0 || _connectedAt == null) duration = Duration(seconds: pd);
-    upload = _i(s.upload);
-    download = _i(s.download);
-    uploadSpeed = _i(s.uploadSpeed);
-    downloadSpeed = _i(s.downloadSpeed);
+    // Счётчики плагина используем, только если собственная статистика
+    // ядра (metrics) недоступна.
+    if (!_metricsOk) {
+      upload = _i(s.upload);
+      download = _i(s.download);
+      uploadSpeed = _i(s.uploadSpeed);
+      downloadSpeed = _i(s.downloadSpeed);
+    }
+    if (next == VpnState.connected) _startStats();
+    if (next == VpnState.disconnected) _stopStats();
     notifyListeners();
   }
 
@@ -126,7 +133,8 @@ class VpnController extends ChangeNotifier {
 
       await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
-      final config = parsed.getFullConfiguration();
+      final baseConfig = parsed.getFullConfiguration();
+      final config = await _withMetrics(baseConfig);
 
       if (!proxyOnlyMode) {
         final allowed = await _vless.requestPermission();
@@ -139,12 +147,25 @@ class VpnController extends ChangeNotifier {
         await WindowsProxyGuard.rememberBefore();
       }
       info = null;
-      await _vless.startVless(
-        remark: node.name,
-        config: config,
-        proxyOnly: proxyOnlyMode,
-        notificationDisconnectButtonName: 'Отключить',
-      );
+      upload = download = uploadSpeed = downloadSpeed = 0;
+      try {
+        await _vless.startVless(
+          remark: node.name,
+          config: config,
+          proxyOnly: proxyOnlyMode,
+          notificationDisconnectButtonName: 'Отключить',
+        );
+      } catch (_) {
+        if (identical(config, baseConfig)) rethrow;
+        // Конфиг со статистикой не принят — запускаемся без неё.
+        _metricsPort = null;
+        await _vless.startVless(
+          remark: node.name,
+          config: baseConfig,
+          proxyOnly: proxyOnlyMode,
+          notificationDisconnectButtonName: 'Отключить',
+        );
+      }
       // Windows (системный прокси): плагин может не прислать статус
       // CONNECTED, хотя прокси уже работает. Проверяем сами: если запрос
       // через активное ядро проходит — считаем подключение установленным.
@@ -183,6 +204,7 @@ class VpnController extends ChangeNotifier {
         error = null;
         _connectedAt = started;
         unawaited(WindowsProxyGuard.rememberOurs());
+        _startStats();
         _ticker?.cancel();
         _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
           if (state != VpnState.connected) {
@@ -201,6 +223,110 @@ class VpnController extends ChangeNotifier {
   DateTime? _connectedAt;
   Timer? _ticker;
 
+  // ---------------------------------------------------------------------
+  // Статистика трафика из ядра Xray (metrics → /debug/vars).
+  // Не зависит от того, присылает ли плагин счётчики на этой платформе.
+
+  int? _metricsPort;
+  Set<String> _proxyTags = const {};
+  Timer? _statsTimer;
+  bool _metricsOk = false;
+  int _lastUp = 0, _lastDown = 0;
+  DateTime? _lastSample;
+
+  /// Добавляет в Xray-конфиг stats + metrics на свободном локальном порту.
+  /// Если конфиг не удалось разобрать — возвращает его без изменений.
+  Future<String> _withMetrics(String config) async {
+    _metricsPort = null;
+    _metricsOk = false;
+    try {
+      final j = jsonDecode(config);
+      if (j is! Map<String, dynamic>) return config;
+      if (j.containsKey('metrics') || j.containsKey('stats')) return config;
+      final outbounds = (j['outbounds'] as List?) ?? const [];
+      _proxyTags = {
+        for (final o in outbounds)
+          if (o is Map &&
+              o['tag'] is String &&
+              !const {'freedom', 'blackhole', 'dns'}.contains(o['protocol']))
+            o['tag'] as String,
+      };
+      if (_proxyTags.isEmpty) return config;
+
+      final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = s.port;
+      await s.close();
+
+      j['stats'] = <String, dynamic>{};
+      j['metrics'] = {'tag': 'smv_metrics', 'listen': '127.0.0.1:$port'};
+      final policy = (j['policy'] as Map<String, dynamic>?) ?? {};
+      final system = (policy['system'] as Map<String, dynamic>?) ?? {};
+      system['statsOutboundUplink'] = true;
+      system['statsOutboundDownlink'] = true;
+      policy['system'] = system;
+      j['policy'] = policy;
+      _metricsPort = port;
+      return jsonEncode(j);
+    } catch (_) {
+      return config;
+    }
+  }
+
+  void _startStats() {
+    if (_metricsPort == null || _statsTimer != null) return;
+    _lastSample = null;
+    _statsTimer =
+        Timer.periodic(const Duration(seconds: 1), (_) => _pollStats());
+  }
+
+  void _stopStats() {
+    _statsTimer?.cancel();
+    _statsTimer = null;
+    _metricsOk = false;
+  }
+
+  Future<void> _pollStats() async {
+    final port = _metricsPort;
+    if (port == null || state != VpnState.connected) return;
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 1);
+    try {
+      final req = await client.get('127.0.0.1', port, '/debug/vars');
+      final res = await req.close().timeout(const Duration(seconds: 2));
+      final body = await res.transform(utf8.decoder).join();
+      final stats = (jsonDecode(body) as Map)['stats'];
+      final out = stats is Map ? stats['outbound'] : null;
+      if (out is! Map) return;
+      var up = 0, down = 0;
+      for (final tag in _proxyTags) {
+        final t = out[tag];
+        if (t is Map) {
+          up += _i(t['uplink']);
+          down += _i(t['downlink']);
+        }
+      }
+      final now = DateTime.now();
+      final last = _lastSample;
+      if (last != null) {
+        final secs = now.difference(last).inMilliseconds / 1000;
+        if (secs > 0) {
+          uploadSpeed = ((up - _lastUp).clamp(0, 1 << 62) / secs).round();
+          downloadSpeed = ((down - _lastDown).clamp(0, 1 << 62) / secs).round();
+        }
+      }
+      _lastSample = now;
+      _lastUp = up;
+      _lastDown = down;
+      upload = up;
+      download = down;
+      _metricsOk = true;
+      notifyListeners();
+    } catch (_) {
+      // ядро ещё не подняло metrics или порт занят — попробуем позже
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<void> disconnect() async {
     try {
       state = VpnState.disconnecting;
@@ -210,6 +336,7 @@ class VpnController extends ChangeNotifier {
       error = _humanError(e);
     } finally {
       if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
+      _stopStats();
       _watchdog?.cancel();
       _ticker?.cancel();
       _connectedAt = null;
