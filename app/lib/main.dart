@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'nodes_store.dart';
 import 'app_shell.dart';
+import 'tray.dart';
 import 'widgets/logo.dart';
 import 'vpn_controller.dart';
 
@@ -16,6 +17,7 @@ Future<void> main() async {
     store.load(),
   ]);
   runApp(SmvApp(store: store, vpn: vpn));
+  await AppTray(vpn, store).init();
 }
 
 class SmvApp extends StatefulWidget {

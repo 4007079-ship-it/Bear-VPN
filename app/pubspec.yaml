@@ -19,6 +19,8 @@ dependencies:
   flutter_vless: ^1.1.7
   # Хранение серверов с ключами: Android Keystore, Windows DPAPI.
   flutter_secure_storage: ^9.2.2
+  # Значок в области уведомлений Windows.
+  tray_manager: ^0.2.3
   # Выбор файлов: Android, Windows, Linux, macOS, iOS.
   file_selector: ^1.0.3
   # Генерация QR — офлайн.
@@ -36,3 +38,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/tray_on.ico
+    - assets/tray_off.ico
