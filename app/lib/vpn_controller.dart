@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
 
+import 'windows_proxy_guard.dart';
+
 enum VpnState { disconnected, connecting, connected, disconnecting }
 
 /// Подключение через ядро Xray (плагин flutter_vless).
@@ -24,6 +26,9 @@ class VpnController extends ChangeNotifier {
   VpnState state = VpnState.disconnected;
   String? activeNodeId;
   String? error;
+
+  /// Информационное сообщение (не ошибка), например о восстановлении прокси.
+  String? info;
   Duration duration = Duration.zero;
   int upload = 0;
   int download = 0;
@@ -43,6 +48,27 @@ class VpnController extends ChangeNotifier {
         ProxyProtocol.http => 'HTTP-прокси пока не поддерживается',
         _ => null,
       };
+
+  /// При запуске: если прошлый сеанс оставил наш системный прокси
+  /// (приложение закрыли без «Отключить» или оно упало) — вернуть настройки.
+  Future<void> recoverOnStartup() async {
+    if (!Platform.isWindows) return;
+    if (await WindowsProxyGuard.restoreIfOurs()) {
+      info = 'Прошлый сеанс завершился без отключения — настройки прокси '
+          'Windows восстановлены, интернет работает напрямую.';
+      notifyListeners();
+    }
+  }
+
+  /// При закрытии окна: отключиться и вернуть настройки прокси.
+  Future<void> shutdown() async {
+    if (state != VpnState.disconnected) {
+      try {
+        await _vless.stopVless().timeout(const Duration(seconds: 5));
+      } catch (_) {}
+    }
+    if (Platform.isWindows) await WindowsProxyGuard.restoreIfOurs();
+  }
 
   Future<void> _init() async {
     if (_initialized) return;
@@ -108,9 +134,11 @@ class VpnController extends ChangeNotifier {
           throw Exception('Нет разрешения на VPN');
         }
       }
-      if (state == VpnState.connected) {
-        await _vless.stopVless();
+      if (proxyOnlyMode) {
+        await WindowsProxyGuard.restoreIfOurs();
+        await WindowsProxyGuard.rememberBefore();
       }
+      info = null;
       await _vless.startVless(
         remark: node.name,
         config: config,
@@ -133,6 +161,7 @@ class VpnController extends ChangeNotifier {
       state = VpnState.disconnected;
       activeNodeId = null;
       error = _humanError(e);
+      if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
       notifyListeners();
     }
   }
@@ -153,6 +182,7 @@ class VpnController extends ChangeNotifier {
         delayMs = d;
         error = null;
         _connectedAt = started;
+        unawaited(WindowsProxyGuard.rememberOurs());
         _ticker?.cancel();
         _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
           if (state != VpnState.connected) {
@@ -179,6 +209,7 @@ class VpnController extends ChangeNotifier {
     } catch (e) {
       error = _humanError(e);
     } finally {
+      if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
       _watchdog?.cancel();
       _ticker?.cancel();
       _connectedAt = null;

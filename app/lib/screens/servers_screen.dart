@@ -414,6 +414,10 @@ class ConnectPanel extends StatelessWidget {
             const SizedBox(height: 6),
             Text(unsupported, style: TextStyle(color: cs.error, fontSize: 13)),
           ],
+          if (vpn.info != null) ...[
+            const SizedBox(height: 6),
+            Text(vpn.info!, style: const TextStyle(fontSize: 13)),
+          ],
           if (vpn.error != null) ...[
             const SizedBox(height: 6),
             SelectableText(vpn.error!,
