@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'nodes_store.dart';
 import 'app_shell.dart';
+import 'widgets/logo.dart';
 import 'vpn_controller.dart';
 
 Future<void> main() async {
@@ -50,7 +51,7 @@ class _SmvAppState extends State<SmvApp> {
   Widget build(BuildContext context) {
     const seed = Color(0xFF3DDC97);
     return MaterialApp(
-      title: 'Тень',
+      title: appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: seed),

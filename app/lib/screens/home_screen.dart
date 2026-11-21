@@ -48,9 +48,9 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   // Заголовок
                   Row(children: [
-                    const TenLogo(size: 30),
+                    const AppLogo(size: 30),
                     const SizedBox(width: 10),
-                    const Text('Тень',
+                    const Text(appName,
                         style: TextStyle(
                             fontSize: 22, fontWeight: FontWeight.w600)),
                     const SizedBox(width: 8),

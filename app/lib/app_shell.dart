@@ -67,9 +67,9 @@ class _AppShellState extends State<AppShell> {
                 const Padding(
                   padding: EdgeInsets.fromLTRB(10, 4, 0, 20),
                   child: Row(children: [
-                    TenLogo(size: 28),
+                    AppLogo(size: 28),
                     SizedBox(width: 10),
-                    Text('Тень',
+                    Text(appName,
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700)),
                   ]),

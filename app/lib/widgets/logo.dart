@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Знак «Тень»: затмение — мятный круг, наполовину закрытый тенью.
-class TenLogo extends StatelessWidget {
+/// Название приложения — в одном месте.
+const appName = 'Shadow VPN';
+
+/// Знак Shadow VPN: мятная молния на графитовой плашке.
+class AppLogo extends StatelessWidget {
   final double size;
 
-  /// С фоном-плашкой (как иконка приложения) или только знак.
+  /// С плашкой (как иконка приложения) или только молния.
   final bool tile;
-  const TenLogo({super.key, this.size = 32, this.tile = true});
+  const AppLogo({super.key, this.size = 32, this.tile = true});
 
   static const mint = Color(0xFF3DDC97);
   static const graphite = Color(0xFF1B2024);
@@ -14,40 +17,47 @@ class TenLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Тень',
+      label: appName,
       image: true,
       child: CustomPaint(
         size: Size.square(size),
-        painter: _EclipsePainter(
-          tile: tile,
-          shadow: tile ? graphite : Theme.of(context).scaffoldBackgroundColor,
-        ),
+        painter: _BoltPainter(tile: tile),
       ),
     );
   }
 }
 
-class _EclipsePainter extends CustomPainter {
+class _BoltPainter extends CustomPainter {
   final bool tile;
-  final Color shadow;
-  _EclipsePainter({required this.tile, required this.shadow});
+  _BoltPainter({required this.tile});
 
   @override
   void paint(Canvas canvas, Size size) {
     final k = size.width / 100;
     if (tile) {
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-            Offset.zero & size, Radius.circular(24 * k)),
-        Paint()..color = TenLogo.graphite,
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(24 * k)),
+        Paint()..color = AppLogo.graphite,
       );
     }
-    canvas.drawCircle(
-        Offset(50 * k, 52 * k), 27 * k, Paint()..color = TenLogo.mint);
-    canvas.drawCircle(Offset(63 * k, 42 * k), 25 * k, Paint()..color = shadow);
+    // Та же молния, что в app/branding/shadow_icon.svg.
+    final bolt = Path()
+      ..moveTo(58 * k, 10 * k)
+      ..lineTo(26 * k, 56 * k)
+      ..lineTo(46 * k, 56 * k)
+      ..lineTo(40 * k, 90 * k)
+      ..lineTo(74 * k, 42 * k)
+      ..lineTo(54 * k, 42 * k)
+      ..lineTo(62 * k, 10 * k)
+      ..close();
+    final paint = Paint()
+      ..color = AppLogo.mint
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 3 * k;
+    canvas.drawPath(bolt, paint..style = PaintingStyle.fill);
+    canvas.drawPath(bolt, paint..style = PaintingStyle.stroke);
   }
 
   @override
-  bool shouldRepaint(covariant _EclipsePainter old) =>
-      old.tile != tile || old.shadow != shadow;
+  bool shouldRepaint(covariant _BoltPainter old) => old.tile != tile;
 }
