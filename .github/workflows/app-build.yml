@@ -28,7 +28,7 @@ jobs:
       - name: Generate platform folders
         run: |
           flutter create --platforms=android --org com.smv --project-name smv_vpn .
-          sed -i 's/android:label="smv_vpn"/android:label="Shadow VPN"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="smv_vpn"/android:label="Bear"/' android/app/src/main/AndroidManifest.xml
           cp -r branding/android/res/. android/app/src/main/res/
           # flutter_vless: minSdk 23 и распаковка нативных библиотек (xray, tun2socks)
           python3 - <<'PY'
@@ -65,7 +65,7 @@ jobs:
         shell: pwsh
         run: |
           flutter create --platforms=windows --org com.smv --project-name smv_vpn .
-          (Get-Content windows/runner/main.cpp) -replace 'L"smv_vpn"', 'L"Shadow VPN"' | Set-Content windows/runner/main.cpp
+          (Get-Content windows/runner/main.cpp) -replace 'L"smv_vpn"', 'L"Bear"' | Set-Content windows/runner/main.cpp
           Copy-Item branding/windows/app_icon.ico windows/runner/resources/app_icon.ico -Force
       - run: flutter pub get
       - run: flutter build windows --release

@@ -49,8 +49,8 @@ class _SmvAppState extends State<SmvApp> {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFFFF7A00);
-    const black = Color(0xFF0A0A0A);
+    const seed = BearColors.yellow;
+    const black = BearColors.black;
     return MaterialApp(
       title: appName,
       debugShowCheckedModeBanner: false,
@@ -71,8 +71,8 @@ class _SmvAppState extends State<SmvApp> {
           surfaceContainer: const Color(0xFF161616),
           surfaceContainerHigh: const Color(0xFF1C1C1C),
           surfaceContainerHighest: const Color(0xFF262626),
-          secondaryContainer: const Color(0xFF3A2412),
-          onSecondaryContainer: const Color(0xFFFF9A3C),
+          secondaryContainer: const Color(0xFF3A2E00),
+          onSecondaryContainer: const Color(0xFFFFD54A),
           outline: const Color(0xFF5A5A5A),
           outlineVariant: const Color(0xFF2E2E2E),
         ),
