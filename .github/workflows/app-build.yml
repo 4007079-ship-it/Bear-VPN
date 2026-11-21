@@ -7,8 +7,7 @@ name: app-build
 on:
   push:
     paths: ["app/**", "packages/**", ".github/workflows/app-build.yml"]
-    # Тег вида v0.1.0 — собрать и выложить релиз на странице Releases
-    tags: ["v*"]
+    tags-ignore: ["**"]
   # Опубликованный релиз на GitHub — собрать и приложить файлы
   release:
     types: [published]
@@ -99,7 +98,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'release'
     needs: [android, windows]
     runs-on: ubuntu-latest
     permissions:

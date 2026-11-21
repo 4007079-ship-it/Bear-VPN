@@ -14,7 +14,7 @@
   <a href="https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/link-parser.yml"><img src="https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/link-parser.yml/badge.svg?branch=main" alt="Парсер"></a>
 </p>
 
-> Тестовая версия. Готовых релизов пока нет — сборки берутся из GitHub Actions (см. ниже).
+> Тестовая версия. Скачать — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases).
 
 ## Возможности
 
@@ -37,13 +37,18 @@
 - Несколько параллельных соединений XHTTP (xmux).
 - Несколько серверов сразу с автопереключением: «самый быстрый» или «поровну».
 
-## Скачать тестовую сборку
+## Скачать
 
-1. Откройте [Actions → app-build](https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/app-build.yml) и выберите последний успешный запуск.
-2. Внизу страницы, в разделе **Artifacts**:
-   - **Bear-VPN-android** — APK для Android 6.0+;
-   - **Bear-VPN-windows** — папка с `BearVPN.exe` для Windows 10/11 (64 бит).
-3. Windows: распакуйте архив целиком и запустите `BearVPN.exe`. Папка `xray` должна лежать рядом с программой.
+Последняя версия — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases):
+- `Bear-VPN-<версия>-android.apk` — Android 6.0+;
+- `Bear-VPN-<версия>-windows-x64.zip` — Windows 10/11 (64 бит): распакуйте целиком и запустите `BearVPN.exe`,
+  папка `xray` должна лежать рядом.
+
+Промежуточные сборки после каждого изменения — в [Actions → app-build](https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/app-build.yml),
+раздел **Artifacts** у последнего успешного запуска.
+
+**Новая версия:** поднимите `version` в `app/pubspec.yaml`, добавьте заметки `docs/releases/vX.Y.Z.md` и опубликуйте
+релиз с тегом `vX.Y.Z` на GitHub — файлы соберутся и приложатся сами.
 
 ## Устройство проекта
 
