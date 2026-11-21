@@ -41,7 +41,8 @@
 
 Последняя версия — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases):
 - `Bear-VPN-<версия>-android.apk` — Android 6.0+;
-- `Bear-VPN-<версия>-windows-x64.zip` — Windows 10/11 (64 бит): распакуйте целиком и запустите `BearVPN.exe`,
+- `Bear-VPN-<версия>-windows-setup.exe` — установщик для Windows 10/11 (64 бит);
+- `Bear-VPN-<версия>-windows-x64.zip` — Windows без установки: распакуйте целиком и запустите `BearVPN.exe`,
   папка `xray` должна лежать рядом.
 
 Промежуточные сборки после каждого изменения — в [Actions → app-build](https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/app-build.yml),
@@ -62,6 +63,7 @@ app/                      приложение на Flutter (Android, Windows)
     nodes_store.dart      хранение серверов и подписок
     windows_proxy_guard.dart  возврат прокси Windows
   branding/               логотип и значки
+  installer/              установщик Windows (Inno Setup)
 packages/smv_link_parser/ разбор ссылок, конфигов и подписок (чистый Dart, с тестами)
 docs/node-import.md       техническое задание на добавление серверов
 .github/workflows/        сборка APK и Windows, тесты
