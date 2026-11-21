@@ -53,7 +53,15 @@ class VpnController extends ChangeNotifier {
   /// При запуске: если прошлый сеанс оставил наш системный прокси
   /// (приложение закрыли без «Отключить» или оно упало) — вернуть настройки.
   Future<void> recoverOnStartup() async {
-    if (!Platform.isWindows) return;
+    if (!Platform.isWindows) {
+      // Android: VPN-служба живёт отдельно от экрана. После сворачивания или
+      // перезапуска приложения сразу подписываемся на её статусы, чтобы
+      // показать «Подключено», если соединение уже работает.
+      try {
+        await _init();
+      } catch (_) {}
+      return;
+    }
     await killOwnXray();
     if (await WindowsProxyGuard.restoreIfOurs()) {
       info = 'Прошлый сеанс завершился без отключения — настройки прокси '
