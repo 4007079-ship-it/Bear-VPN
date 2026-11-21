@@ -136,8 +136,8 @@ class VpnController extends ChangeNotifier {
   bool _busy = false;
 
   /// Экспериментально (Windows): добавлять в конфиг статистику трафика.
-  /// По умолчанию выключено — с ней плагин на Windows может зависнуть.
-  bool windowsStats = false;
+  /// Включено по умолчанию (проверено на Windows 10/11); выключатель в «Логах».
+  bool windowsStats = true;
 
   void setWindowsStats(bool v) {
     windowsStats = v;
