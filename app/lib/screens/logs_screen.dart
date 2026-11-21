@@ -80,7 +80,7 @@ class AboutScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Text(
-          'SMV-VPN — тестовая сборка.\n\n'
+          'Тень — тестовая сборка.\n\n'
           'Подключение через ядро Xray: VLESS (Reality, XHTTP), VMess, '
           'Trojan, Shadowsocks, Hysteria2, SOCKS.\n\n'
           'Android — режим VPN. Windows — режим системного прокси: без прав '

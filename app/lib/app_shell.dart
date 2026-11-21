@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/logs_screen.dart';
 import 'screens/servers_screen.dart';
 import 'vpn_controller.dart';
+import 'widgets/logo.dart';
 import 'widgets/traffic_card.dart';
 
 /// Каркас: боковое меню на широком экране (Windows), нижнее — на телефоне.
@@ -63,6 +64,16 @@ class _AppShellState extends State<AppShell> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(10, 4, 0, 20),
+                  child: Row(children: [
+                    TenLogo(size: 28),
+                    SizedBox(width: 10),
+                    Text('Тень',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w700)),
+                  ]),
+                ),
                 for (var i = 0; i < _items.length; i++)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),

@@ -6,6 +6,7 @@ import 'package:smv_link_parser/smv_link_parser.dart';
 import '../import_flow.dart';
 import '../nodes_store.dart';
 import '../vpn_controller.dart';
+import '../widgets/logo.dart';
 import '../widgets/node_info.dart';
 import '../widgets/traffic_card.dart';
 
@@ -47,9 +48,9 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   // Заголовок
                   Row(children: [
-                    Icon(Icons.shield_outlined, color: cs.primary, size: 28),
-                    const SizedBox(width: 8),
-                    const Text('SMV-VPN',
+                    const TenLogo(size: 30),
+                    const SizedBox(width: 10),
+                    const Text('Тень',
                         style: TextStyle(
                             fontSize: 22, fontWeight: FontWeight.w600)),
                     const SizedBox(width: 8),

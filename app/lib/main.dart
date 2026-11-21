@@ -48,17 +48,20 @@ class _SmvAppState extends State<SmvApp> {
 
   @override
   Widget build(BuildContext context) {
-    final seed = const Color(0xFF2F6FED);
+    const seed = Color(0xFF3DDC97);
     return MaterialApp(
-      title: 'SMV-VPN',
+      title: 'Тень',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: seed),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
-        colorScheme:
-            ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seed,
+          brightness: Brightness.dark,
+        ).copyWith(primary: seed, surface: const Color(0xFF101316)),
+        scaffoldBackgroundColor: const Color(0xFF101316),
         useMaterial3: true,
       ),
       themeMode: ThemeMode.dark,
