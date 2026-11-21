@@ -134,7 +134,7 @@ class VpnController extends ChangeNotifier {
       await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
       final baseConfig = parsed.getFullConfiguration();
-      final config = await _withMetrics(baseConfig);
+      _startLog.clear();
 
       if (!proxyOnlyMode) {
         final allowed = await _vless.requestPermission();
@@ -148,25 +148,38 @@ class VpnController extends ChangeNotifier {
       }
       info = null;
       upload = download = uploadSpeed = downloadSpeed = 0;
-      try {
-        await _vless.startVless(
-          remark: node.name,
-          config: config,
-          proxyOnly: proxyOnlyMode,
-          notificationDisconnectButtonName: 'Отключить',
-        );
-      } catch (_) {
-        if (identical(config, baseConfig)) rethrow;
-        // Конфиг со статистикой не принят — запускаемся без неё.
-        _metricsPort = null;
-        _probePort = null;
-        await _vless.startVless(
-          remark: node.name,
-          config: baseConfig,
-          proxyOnly: proxyOnlyMode,
-          notificationDisconnectButtonName: 'Отключить',
-        );
+      // Пробуем по очереди: со статистикой и проверкой связи → только
+      // с проверкой связи → исходный конфиг. Перед повтором обязательно
+      // останавливаем сессию: плагин не меняет конфиг на лету.
+      Object? lastError;
+      var started = false;
+      for (final (metrics, probe, label) in const [
+        (true, true, 'статистика + проверка'),
+        (false, true, 'только проверка'),
+        (false, false, 'исходный конфиг'),
+      ]) {
+        final config =
+            await _withExtras(baseConfig, metrics: metrics, probe: probe);
+        try {
+          await _vless.startVless(
+            remark: node.name,
+            config: config,
+            proxyOnly: proxyOnlyMode,
+            notificationDisconnectButtonName: 'Отключить',
+          );
+          _startLog.add('$label: запущено');
+          started = true;
+          break;
+        } catch (e) {
+          lastError = e;
+          _startLog.add('$label: ${_humanError(e)}');
+          try {
+            await _vless.stopVless().timeout(const Duration(seconds: 5));
+          } catch (_) {}
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
       }
+      if (!started) throw lastError ?? Exception('Не удалось запустить ядро');
       // Windows (системный прокси): плагин может не прислать статус
       // CONNECTED, хотя прокси уже работает. Проверяем сами: если запрос
       // через активное ядро проходит — считаем подключение установленным.
@@ -265,19 +278,24 @@ class VpnController extends ChangeNotifier {
 
   /// Добавляет в Xray-конфиг stats + metrics на свободном локальном порту.
   /// Если конфиг не удалось разобрать — возвращает его без изменений.
-  Future<String> _withMetrics(String config) async {
+  final List<String> _startLog = [];
+
+  Future<String> _withExtras(String config,
+      {required bool metrics, required bool probe}) async {
     _metricsPort = null;
     _probePort = null;
     _metricsOk = false;
+    if (!metrics && !probe) return config;
     try {
       final j = jsonDecode(config);
       if (j is! Map<String, dynamic>) return config;
 
       // Свой HTTP-вход на свободном порту: через него приложение само
       // проверяет, что соединение через сервер реально работает.
-      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      final probePort = probe.port;
-      await probe.close();
+      final probeSock =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final probePort = probeSock.port;
+      await probeSock.close();
       final inbounds = List<Object?>.from((j['inbounds'] as List?) ?? const []);
       inbounds.add({
         'tag': 'smv_probe',
@@ -289,7 +307,7 @@ class VpnController extends ChangeNotifier {
       j['inbounds'] = inbounds;
       _probePort = probePort;
 
-      if (j.containsKey('metrics') || j.containsKey('stats')) {
+      if (!metrics || j.containsKey('metrics') || j.containsKey('stats')) {
         return jsonEncode(j);
       }
       final outbounds = (j['outbounds'] as List?) ?? const [];
@@ -422,6 +440,10 @@ class VpnController extends ChangeNotifier {
         ..writeln(snap.toString().isEmpty ? '(пусто)' : snap);
     } catch (e) {
       b.writeln('Журнал: ошибка — ${_humanError(e)}');
+    }
+    if (_startLog.isNotEmpty) {
+      b.writeln('--- запуск ядра ---');
+      _startLog.forEach(b.writeln);
     }
     if (error != null) b.writeln('Последняя ошибка: $error');
     return b.toString();
