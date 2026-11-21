@@ -97,7 +97,7 @@ class AboutScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Text(
-          'Bear — тестовая сборка.\n\n'
+          'Bear VPN — тестовая сборка.\nРазработчик: SMV.\n\n'
           'Подключение через ядро Xray: VLESS (Reality, XHTTP), VMess, '
           'Trojan, Shadowsocks, Hysteria2, SOCKS.\n\n'
           'Android — режим VPN. Windows — режим системного прокси: без прав '

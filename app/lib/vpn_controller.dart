@@ -348,7 +348,7 @@ class VpnController extends ChangeNotifier {
   Future<void> _connectWindows(ProxyNode node, String baseConfig) async {
     final vpnMode = mode == ConnectionMode.vpn;
     if (vpnMode && !await isWindowsAdmin()) {
-      throw Exception('Для режима VPN запустите Bear от имени администратора '
+      throw Exception('Для режима VPN запустите Bear VPN от имени администратора '
           '(кнопка ниже) или выберите «Системный прокси».');
     }
     await _resetWindowsCore();
@@ -664,7 +664,7 @@ class VpnController extends ChangeNotifier {
       if (!proxyOnlyMode) error = _humanError(e);
       if (proxyOnlyMode && _activeMode == ConnectionMode.vpn) {
         error = 'Ядро долго не отключало VPN. Если интернет пропал — '
-            'перезапустите Bear или компьютер.';
+            'перезапустите Bear VPN или компьютер.';
       }
     } finally {
       if (proxyOnlyMode) {

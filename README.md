@@ -1,2 +1,2 @@
-# SMV-VPN
-SMV-VPN client
+# Bear VPN
+Клиент Bear VPN (разработчик SMV).

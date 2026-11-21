@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Название приложения — в одном месте.
-const appName = 'Bear';
+const appName = 'Bear VPN';
 
 /// Фирменные цвета Bear: жёлтый и чёрный.
 class BearColors {

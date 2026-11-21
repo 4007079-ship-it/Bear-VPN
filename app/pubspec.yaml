@@ -1,5 +1,5 @@
 name: smv_vpn
-description: SMV-VPN — клиент (тестовая сборка импорта узлов).
+description: Bear VPN — клиент (разработчик SMV).
 publish_to: none
 version: 0.1.0+1
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'vpn_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  migrateWindowsData();
   final vpn = VpnController();
   final store = NodesStore();
   await Future.wait([
@@ -20,6 +22,29 @@ Future<void> main() async {
   ]);
   runApp(SmvApp(store: store, vpn: vpn));
   await AppTray(vpn, store).init();
+}
+
+/// Windows: после переименования в «Bear VPN» данные (серверы, подписки)
+/// лежат в новой папке %APPDATA%\\SMV\\Bear VPN. Переносим их из старой
+/// %APPDATA%\\com.smv\\smv_vpn, если в новой ещё ничего нет.
+void migrateWindowsData() {
+  if (!Platform.isWindows) return;
+  try {
+    final appData = Platform.environment['APPDATA'];
+    if (appData == null) return;
+    final from = Directory('$appData\\com.smv\\smv_vpn');
+    final to = Directory('$appData\\SMV\\Bear VPN');
+    if (!from.existsSync()) return;
+    if (to.existsSync() && to.listSync().isNotEmpty) return;
+    to.createSync(recursive: true);
+    for (final e in from.listSync()) {
+      if (e is File) {
+        e.copySync('${to.path}\\${e.uri.pathSegments.last}');
+      }
+    }
+  } catch (_) {
+    // Не удалось — серверы придётся добавить заново, работе это не мешает.
+  }
 }
 
 class SmvApp extends StatefulWidget {

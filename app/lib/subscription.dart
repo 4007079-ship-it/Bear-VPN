@@ -131,7 +131,7 @@ class SubscriptionFetcher {
   /// Сначала представляемся как есть; если панель отдала страницу без
   /// серверов (часть панелей так отвечает незнакомым клиентам) — пробуем
   /// ещё раз с агентом распространённого клиента.
-  static const _agents = ['Bear/0.1', 'v2rayNG/1.10.0'];
+  static const _agents = ['BearVPN/0.1', 'v2rayNG/1.10.0'];
 
   static Future<SubscriptionFetch> fetch(String url) async {
     final uri = Uri.tryParse(url.trim());

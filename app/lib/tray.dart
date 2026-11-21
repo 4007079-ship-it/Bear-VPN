@@ -32,10 +32,10 @@ class AppTray with TrayListener {
       await trayManager
           .setIcon(on ? 'assets/tray_on.ico' : 'assets/tray_off.ico');
       await trayManager.setToolTip(switch (st) {
-        VpnState.connected => 'Bear — подключено',
-        VpnState.connecting => 'Bear — подключение…',
-        VpnState.disconnecting => 'Bear — отключение…',
-        VpnState.disconnected => 'Bear — не подключено',
+        VpnState.connected => 'Bear VPN — подключено',
+        VpnState.connecting => 'Bear VPN — подключение…',
+        VpnState.disconnecting => 'Bear VPN — отключение…',
+        VpnState.disconnected => 'Bear VPN — не подключено',
       });
       await trayManager.setContextMenu(Menu(items: [
         MenuItem(
