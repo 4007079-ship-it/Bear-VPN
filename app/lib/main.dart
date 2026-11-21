@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'nodes_store.dart';
-import 'screens/servers_screen.dart';
+import 'app_shell.dart';
 import 'vpn_controller.dart';
 
 Future<void> main() async {
@@ -61,7 +61,8 @@ class _SmvAppState extends State<SmvApp> {
             ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark),
         useMaterial3: true,
       ),
-      home: ServersScreen(store: store, vpn: vpn),
+      themeMode: ThemeMode.dark,
+      home: AppShell(store: store, vpn: vpn),
     );
   }
 }
