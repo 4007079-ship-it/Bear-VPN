@@ -116,10 +116,14 @@ class _NavTile extends StatelessWidget {
                 color: selected ? cs.onSecondaryContainer : cs.onSurfaceVariant),
           ),
           const SizedBox(width: 14),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+          Expanded(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+          ),
         ]),
       ),
     );
