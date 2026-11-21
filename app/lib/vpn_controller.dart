@@ -54,6 +54,7 @@ class VpnController extends ChangeNotifier {
   /// (приложение закрыли без «Отключить» или оно упало) — вернуть настройки.
   Future<void> recoverOnStartup() async {
     if (!Platform.isWindows) return;
+    await killOwnXray();
     if (await WindowsProxyGuard.restoreIfOurs()) {
       info = 'Прошлый сеанс завершился без отключения — настройки прокси '
           'Windows восстановлены, интернет работает напрямую.';
@@ -65,10 +66,13 @@ class VpnController extends ChangeNotifier {
   Future<void> shutdown() async {
     if (state != VpnState.disconnected) {
       try {
-        await _vless.stopVless().timeout(const Duration(seconds: 5));
+        await _vless.stopVless().timeout(const Duration(seconds: 2));
       } catch (_) {}
     }
-    if (Platform.isWindows) await WindowsProxyGuard.restoreIfOurs();
+    if (Platform.isWindows) {
+      await killOwnXray();
+      await WindowsProxyGuard.restoreIfOurs();
+    }
   }
 
   Future<void> _init() async {
@@ -89,12 +93,16 @@ class VpnController extends ChangeNotifier {
       VlessConnectionState.disconnecting => VpnState.disconnecting,
       _ => VpnState.disconnected,
     };
-    // Подключение уже подтверждено проверкой — не откатываемся на
-    // «Подключение…» из-за запоздалых статусов плагина.
-    if (proxyOnlyMode &&
-        _connectedAt != null &&
-        state == VpnState.connected &&
-        next == VpnState.connecting) {
+    // Windows (системный прокси): статусы плагина ненадёжны — состоянием
+    // управляет само приложение по своей проверке связи.
+    if (proxyOnlyMode) {
+      if (!_metricsOk) {
+        upload = _i(s.upload);
+        download = _i(s.download);
+        uploadSpeed = _i(s.uploadSpeed);
+        downloadSpeed = _i(s.downloadSpeed);
+        notifyListeners();
+      }
       return;
     }
     if (next == VpnState.disconnected) {
@@ -117,7 +125,28 @@ class VpnController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _busy = false;
+
+  /// Экспериментально (Windows): добавлять в конфиг статистику трафика.
+  /// По умолчанию выключено — с ней плагин на Windows может зависнуть.
+  bool windowsStats = false;
+
+  void setWindowsStats(bool v) {
+    windowsStats = v;
+    notifyListeners();
+  }
+
   Future<void> connect(ProxyNode node) async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      await _connect(node);
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<void> _connect(ProxyNode node) async {
     error = null;
     delayMs = null;
     final reason = unsupportedReason(node);
@@ -135,6 +164,10 @@ class VpnController extends ChangeNotifier {
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
       final baseConfig = parsed.getFullConfiguration();
       _startLog.clear();
+      if (proxyOnlyMode) {
+        await _connectWindows(node, baseConfig);
+        return;
+      }
 
       if (!proxyOnlyMode) {
         final allowed = await _vless.requestPermission();
@@ -212,6 +245,104 @@ class VpnController extends ChangeNotifier {
       error = _humanError(e);
       if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
       notifyListeners();
+    }
+  }
+
+  /// Windows: плагин может так и не завершить startVless, хотя прокси уже
+  /// работает. Поэтому не ждём его, а проверяем связь сами.
+  Future<void> _connectWindows(ProxyNode node, String baseConfig) async {
+    await _resetWindowsCore();
+    await WindowsProxyGuard.restoreIfOurs();
+    await WindowsProxyGuard.rememberBefore();
+    info = null;
+    upload = download = uploadSpeed = downloadSpeed = 0;
+
+    String config;
+    if (windowsStats) {
+      config = await _withExtras(baseConfig, metrics: true, probe: true);
+    } else {
+      config = baseConfig;
+      _metricsPort = null;
+      _probePort = _httpInboundPort(baseConfig);
+      if (_probePort == null) {
+        config = await _withExtras(baseConfig, metrics: false, probe: true);
+      }
+    }
+    _startLog.add('режим: ${windowsStats ? 'со статистикой' : 'обычный'}, '
+        'порт проверки: ${_probePort ?? 'нет'}');
+
+    final nodeId = node.id;
+    unawaited(_vless
+        .startVless(
+          remark: node.name,
+          config: config,
+          proxyOnly: true,
+          notificationDisconnectButtonName: 'Отключить',
+        )
+        .then((_) => _startLog.add('startVless: завершён'),
+            onError: (Object e) {
+      _startLog.add('startVless: ${_humanError(e)}');
+      if (state == VpnState.connecting && activeNodeId == nodeId) {
+        error = _humanError(e);
+        notifyListeners();
+      }
+    }));
+    unawaited(_confirmByProbe(nodeId));
+    _watchdog?.cancel();
+    _watchdog = Timer(const Duration(seconds: 25), () {
+      if (state == VpnState.connecting && activeNodeId == nodeId) {
+        error = 'За 25 секунд связь через сервер не появилась. '
+            'Откройте «Логи» и пришлите текст.';
+        notifyListeners();
+      }
+    });
+  }
+
+  /// Порт HTTP-входа из конфига плагина (на него указывает системный прокси).
+  static int? _httpInboundPort(String config) {
+    try {
+      final j = jsonDecode(config) as Map<String, dynamic>;
+      for (final ib in (j['inbounds'] as List? ?? const [])) {
+        if (ib is Map && ib['protocol'] == 'http') {
+          final p = ib['port'];
+          if (p is int) return p;
+          if (p is String) return int.tryParse(p);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Остановить сессию плагина; если он не отвечает — завершить наш
+  /// xray.exe (только из папки приложения, чужие клиенты не трогаем).
+  Future<void> _resetWindowsCore() async {
+    try {
+      await _vless.stopVless().timeout(const Duration(seconds: 3));
+      _startLog.add('остановка сессии: ок');
+    } catch (e) {
+      _startLog.add('остановка сессии: ${_humanError(e)}');
+    }
+    final killed = await killOwnXray();
+    if (killed > 0) _startLog.add('завершено зависших xray.exe: $killed');
+  }
+
+  static Future<int> killOwnXray() async {
+    if (!Platform.isWindows) return 0;
+    try {
+      final dir = File(Platform.resolvedExecutable).parent.path;
+      final xray = '$dir\\xray\\xray.exe'.replaceAll("'", "''");
+      final r = await Process.run('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "\$p = Get-Process xray -ErrorAction SilentlyContinue | "
+            "Where-Object { \$_.Path -eq '$xray' }; "
+            "\$p | Stop-Process -Force -ErrorAction SilentlyContinue; "
+            "(\$p | Measure-Object).Count",
+      ]).timeout(const Duration(seconds: 10));
+      return int.tryParse((r.stdout as String).trim()) ?? 0;
+    } catch (_) {
+      return 0;
     }
   }
 
@@ -412,11 +543,16 @@ class VpnController extends ChangeNotifier {
     try {
       state = VpnState.disconnecting;
       notifyListeners();
-      await _vless.stopVless();
+      await _vless
+          .stopVless()
+          .timeout(Duration(seconds: proxyOnlyMode ? 4 : 10));
     } catch (e) {
-      error = _humanError(e);
+      if (!proxyOnlyMode) error = _humanError(e);
     } finally {
-      if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
+      if (proxyOnlyMode) {
+        await killOwnXray();
+        await WindowsProxyGuard.restoreIfOurs();
+      }
       _stopStats();
       _watchdog?.cancel();
       _ticker?.cancel();
