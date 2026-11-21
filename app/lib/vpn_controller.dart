@@ -159,6 +159,7 @@ class VpnController extends ChangeNotifier {
         if (identical(config, baseConfig)) rethrow;
         // Конфиг со статистикой не принят — запускаемся без неё.
         _metricsPort = null;
+        _probePort = null;
         await _vless.startVless(
           remark: node.name,
           config: baseConfig,
@@ -189,14 +190,16 @@ class VpnController extends ChangeNotifier {
 
   Future<void> _confirmByProbe(String nodeId) async {
     final started = DateTime.now();
-    for (var i = 0; i < 15; i++) {
+    for (var i = 0; i < 20; i++) {
       await Future<void>.delayed(const Duration(seconds: 1));
       if (state != VpnState.connecting || activeNodeId != nodeId) return;
-      int d;
-      try {
-        d = _i(await _vless.getConnectedServerDelay());
-      } catch (_) {
-        d = -1;
+      int d = await _probeOnce();
+      if (d <= 0) {
+        try {
+          d = _i(await _vless.getConnectedServerDelay());
+        } catch (_) {
+          d = -1;
+        }
       }
       if (d > 0 && state == VpnState.connecting && activeNodeId == nodeId) {
         state = VpnState.connected;
@@ -228,6 +231,32 @@ class VpnController extends ChangeNotifier {
   // Не зависит от того, присылает ли плагин счётчики на этой платформе.
 
   int? _metricsPort;
+  int? _probePort;
+
+  /// Запрос через ядро (наш HTTP-вход) → задержка в мс или -1.
+  Future<int> _probeOnce() async {
+    final port = _probePort;
+    if (port == null) return -1;
+    final client = HttpClient()
+      ..findProxy = ((_) => 'PROXY 127.0.0.1:$port')
+      ..connectionTimeout = const Duration(seconds: 6);
+    final sw = Stopwatch()..start();
+    try {
+      final req = await client
+          .getUrl(Uri.parse('https://www.gstatic.com/generate_204'))
+          .timeout(const Duration(seconds: 8));
+      final res = await req.close().timeout(const Duration(seconds: 8));
+      await res.drain<void>();
+      return (res.statusCode == 204 || res.statusCode == 200)
+          ? sw.elapsedMilliseconds
+          : -1;
+    } catch (_) {
+      return -1;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Set<String> _proxyTags = const {};
   Timer? _statsTimer;
   bool _metricsOk = false;
@@ -238,11 +267,31 @@ class VpnController extends ChangeNotifier {
   /// Если конфиг не удалось разобрать — возвращает его без изменений.
   Future<String> _withMetrics(String config) async {
     _metricsPort = null;
+    _probePort = null;
     _metricsOk = false;
     try {
       final j = jsonDecode(config);
       if (j is! Map<String, dynamic>) return config;
-      if (j.containsKey('metrics') || j.containsKey('stats')) return config;
+
+      // Свой HTTP-вход на свободном порту: через него приложение само
+      // проверяет, что соединение через сервер реально работает.
+      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final probePort = probe.port;
+      await probe.close();
+      final inbounds = List<Object?>.from((j['inbounds'] as List?) ?? const []);
+      inbounds.add({
+        'tag': 'smv_probe',
+        'listen': '127.0.0.1',
+        'port': probePort,
+        'protocol': 'http',
+        'settings': <String, dynamic>{},
+      });
+      j['inbounds'] = inbounds;
+      _probePort = probePort;
+
+      if (j.containsKey('metrics') || j.containsKey('stats')) {
+        return jsonEncode(j);
+      }
       final outbounds = (j['outbounds'] as List?) ?? const [];
       _proxyTags = {
         for (final o in outbounds)
@@ -251,7 +300,7 @@ class VpnController extends ChangeNotifier {
               !const {'freedom', 'blackhole', 'dns'}.contains(o['protocol']))
             o['tag'] as String,
       };
-      if (_proxyTags.isEmpty) return config;
+      if (_proxyTags.isEmpty) return jsonEncode(j);
 
       final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final port = s.port;
@@ -380,7 +429,8 @@ class VpnController extends ChangeNotifier {
 
   Future<void> measureDelay() async {
     try {
-      delayMs = _i(await _vless.getConnectedServerDelay());
+      final own = await _probeOnce();
+      delayMs = own > 0 ? own : _i(await _vless.getConnectedServerDelay());
     } catch (_) {
       delayMs = -1;
     }

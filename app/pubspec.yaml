@@ -17,6 +17,8 @@ dependencies:
   image_picker: ^1.1.2
   # Ядро Xray: Android — VPN (VpnService), Windows — системный прокси.
   flutter_vless: ^1.1.7
+  # Хранение серверов с ключами: Android Keystore, Windows DPAPI.
+  flutter_secure_storage: ^9.2.2
   # Выбор файлов: Android, Windows, Linux, macOS, iOS.
   file_selector: ^1.0.3
   # Генерация QR — офлайн.

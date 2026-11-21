@@ -12,7 +12,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    final store = NodesStore();
+    final store = NodesStore(persist: false);
     await tester.pumpWidget(SmvApp(store: store, vpn: VpnController()));
     expect(find.text('Главная'), findsWidgets);
     expect(find.text('Добавить сервер'), findsWidgets);

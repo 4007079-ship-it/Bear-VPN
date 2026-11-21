@@ -10,8 +10,12 @@ import 'vpn_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final vpn = VpnController();
-  await vpn.recoverOnStartup();
-  runApp(SmvApp(store: NodesStore(), vpn: vpn));
+  final store = NodesStore();
+  await Future.wait([
+    vpn.recoverOnStartup().catchError((Object _) {}),
+    store.load(),
+  ]);
+  runApp(SmvApp(store: store, vpn: vpn));
 }
 
 class SmvApp extends StatefulWidget {
@@ -35,7 +39,10 @@ class _SmvAppState extends State<SmvApp> {
     // Закрытие окна: сначала отключаемся и возвращаем настройки прокси.
     _lifecycle = AppLifecycleListener(
       onExitRequested: () async {
-        await vpn.shutdown();
+        // Окно должно закрываться всегда, даже если ядро не ответило.
+        try {
+          await vpn.shutdown().timeout(const Duration(seconds: 4));
+        } catch (_) {}
         return AppExitResponse.exit;
       },
     );
