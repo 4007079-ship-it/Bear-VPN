@@ -37,7 +37,7 @@
 
 **Подключение**
 - Протоколы: VLESS (Reality, XHTTP, WS, gRPC…), VMess, Trojan, Shadowsocks, Hysteria2, SOCKS.
-- Режимы: «Прокси» (только локальный порт), «Системный прокси» (Windows, macOS, Linux), «VPN» (весь трафик: Android, Windows с правами администратора).
+- Режимы: «Прокси» (только локальный порт), «Системный прокси» (Windows, macOS, Linux), «VPN» (весь трафик: Android; Windows и macOS — с паролем/правами администратора).
 - При отключении, закрытии и после сбоя системный прокси возвращается как был (Windows, macOS, GNOME/KDE на Linux).
 - Задержка (пинг), скорость и объём трафика, значок состояния в трее Windows.
 - IP-адрес выхода, который видят сайты: страна, город, провайдер.
@@ -86,6 +86,7 @@ app/                      приложение на Flutter (Android, Windows, m
     windows_proxy_guard.dart  возврат прокси Windows
     unix_proxy_guard.dart     системный прокси macOS / Linux
     linux_core.dart           запуск ядра Xray на Linux
+    mac_tun.dart              режим VPN на macOS (utun + tun2socks)
   branding/               логотип и значки
   installer/              установщик Windows (Inno Setup), пакеты Linux
 packages/smv_link_parser/ разбор ссылок, конфигов и подписок (чистый Dart, с тестами)
@@ -121,7 +122,7 @@ dart pub get && dart test
 
 - AmneziaWG и WireGuard — подключение (ключи уже разбираются).
 - iPhone / iPad (нужен аккаунт разработчика Apple).
-- Режим VPN на macOS и Linux.
+- Режим VPN на Linux.
 - Перетаскивание файлов и QR в окно на Windows.
 - Суммирование каналов.
 
