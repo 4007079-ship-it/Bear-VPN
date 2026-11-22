@@ -113,11 +113,11 @@ dart pub get && dart test
 
 ## Автор
 
-<img src="docs/author.png" width="120" height="120" align="left" alt="SMV">
+<img src="docs/author.png" alt="SMV" width="96" align="left">
 
-&nbsp;&nbsp;SMV<br>
-&nbsp;&nbsp;<a href="mailto:4007079@gmail.com">4007079@gmail.com</a><br>
-&nbsp;&nbsp;<a href="https://github.com/4007079-ship-it">github.com/4007079-ship-it</a>
+**SMV**<br>
+[4007079@gmail.com](mailto:4007079@gmail.com)<br>
+[github.com/4007079-ship-it](https://github.com/4007079-ship-it)
 
 <br clear="left">
 
