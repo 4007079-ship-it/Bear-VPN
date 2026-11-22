@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../core_tweaks.dart';
@@ -164,12 +162,12 @@ class SettingsScreen extends StatelessWidget {
                       vpn.updateSettings((s) => s.serverIp = v.first),
                 ),
               ),
-              if (Platform.isWindows) ...[
+              if (VpnController.proxyOnlyMode) ...[
                 const _Header('Прочее'),
                 SwitchListTile(
                   title: const Text('Статистика трафика'),
                   subtitle: const Text(
-                      'Скорость и объём на Windows. Выключите, если '
+                      'Скорость и объём на компьютере. Выключите, если '
                       'с ней не подключается.'),
                   value: vpn.windowsStats,
                   onChanged: vpn.setWindowsStats,

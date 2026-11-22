@@ -13,7 +13,7 @@ class ModeSelector extends StatelessWidget {
   static String hint(ConnectionMode m) => switch (m) {
         ConnectionMode.proxy => 'Только локальный порт. Программы и браузер '
             'нужно направить на него вручную.',
-        ConnectionMode.systemProxy => 'Браузеры и большинство программ Windows '
+        ConnectionMode.systemProxy => 'Браузеры и большинство программ '
             'идут через сервер. Игры и часть программ — напрямую.',
         ConnectionMode.vpn => Platform.isWindows
             ? 'Экспериментально. Весь трафик компьютера. Нужны права '
@@ -27,7 +27,7 @@ class ModeSelector extends StatelessWidget {
     final locked = vpn.state != VpnState.disconnected;
     final modes = ConnectionMode.available;
     final showPorts = vpn.state == VpnState.connected &&
-        (vpn.mode == ConnectionMode.proxy || Platform.isWindows) &&
+        (vpn.mode == ConnectionMode.proxy || VpnController.proxyOnlyMode) &&
         (vpn.httpPort != null || vpn.socksPort != null);
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -16,6 +16,8 @@ class NodesStore extends ChangeNotifier {
       : _storage = storage ??
             const FlutterSecureStorage(
               aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              // Сборка без подписи Apple: обычная связка ключей macOS.
+              mOptions: MacOsOptions(useDataProtectionKeyChain: false),
             );
 
   final FlutterSecureStorage _storage;

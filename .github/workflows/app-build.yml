@@ -115,9 +115,94 @@ jobs:
           path: app/build/windows/x64/runner/Release/
           retention-days: 30
 
+  linux:
+    # Старая Ubuntu — чтобы сборка запускалась и на системах постарше
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev \
+            liblzma-dev libsecret-1-dev libjsoncpp-dev libayatana-appindicator3-dev imagemagick
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        run: |
+          flutter create --platforms=linux --org com.smv --project-name smv_vpn .
+          sed -i 's/set(BINARY_NAME "smv_vpn")/set(BINARY_NAME "bear-vpn")/' linux/CMakeLists.txt
+          sed -i 's/"smv_vpn"/"Bear VPN"/g' linux/runner/my_application.cc
+          grep -n 'BINARY_NAME "' linux/CMakeLists.txt; grep -n '"Bear VPN"' linux/runner/my_application.cc
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Bundle Xray core
+        run: |
+          B=build/linux/x64/release/bundle
+          curl -fsSL -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          mkdir -p $B/xray && unzip -qo xray.zip -d $B/xray xray geoip.dat geosite.dat
+          chmod +x $B/xray/xray && $B/xray/xray version | head -1
+      - name: Package (.tar.gz, .deb)
+        run: installer/linux/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bear-VPN-linux
+          path: app/build/dist/*
+          retention-days: 30
+
+  macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate platform folders
+        run: |
+          flutter create --platforms=macos --org com.smv --project-name smv_vpn .
+          sed -i '' 's/^PRODUCT_NAME = .*/PRODUCT_NAME = Bear VPN/' macos/Runner/Configs/AppInfo.xcconfig
+          sed -i '' 's/^PRODUCT_COPYRIGHT = .*/PRODUCT_COPYRIGHT = © 2026 SMV/' macos/Runner/Configs/AppInfo.xcconfig
+          # Без песочницы: ядру нужны локальные порты, а системному прокси — networksetup
+          for f in macos/Runner/DebugProfile.entitlements macos/Runner/Release.entitlements; do
+            /usr/libexec/PlistBuddy -c "Set :com.apple.security.app-sandbox false" "$f"
+          done
+          for s in 16 32 64 128 256 512 1024; do
+            sips -z $s $s branding/bear_icon_1024.png \
+              --out macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_$s.png >/dev/null
+          done
+          # flutter_vless требует macOS 13+
+          sed -i '' "s/platform :osx, '[0-9.]*'/platform :osx, '13.0'/" macos/Podfile
+          sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*;/MACOSX_DEPLOYMENT_TARGET = 13.0;/g' macos/Runner.xcodeproj/project.pbxproj
+          cat macos/Runner/Configs/AppInfo.xcconfig; grep -n "platform :osx" macos/Podfile
+      - run: flutter pub get
+      - name: Prepare flutter_vless (proxy-only)
+        run: dart run flutter_vless:setup_macos_vpn --prepare-only
+      - run: flutter build macos --release
+      - name: DMG
+        run: |
+          VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
+          APP="build/macos/Build/Products/Release/Bear VPN.app"
+          ls "$APP/Contents/MacOS"; lipo -archs "$APP/Contents/MacOS/Bear VPN"
+          mkdir -p dmg build/dist && cp -R "$APP" dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "Bear VPN" -srcfolder dmg -ov -format UDZO "build/dist/Bear-VPN-${VER}-macos.dmg"
+          ls -la build/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bear-VPN-macos
+          path: app/build/dist/*.dmg
+          retention-days: 30
+
   release:
     if: github.event_name == 'release'
-    needs: [android, windows]
+    needs: [android, windows, linux, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -138,6 +223,11 @@ jobs:
           cp "out/Bear-VPN-${VER}-android.apk" out/Bear-VPN-android.apk
           cp "out/Bear-VPN-${VER}-windows-setup.exe" out/Bear-VPN-windows-setup.exe
           cp "out/Bear-VPN-${VER}-windows-x64.zip" out/Bear-VPN-windows-x64.zip
+          cp dist/Bear-VPN-linux/* out/
+          cp dist/Bear-VPN-macos/* out/
+          cp "out/Bear-VPN-${VER}-linux-x64.tar.gz" out/Bear-VPN-linux-x64.tar.gz
+          cp "out/Bear-VPN-${VER}-linux-amd64.deb" out/Bear-VPN-linux-amd64.deb
+          cp "out/Bear-VPN-${VER}-macos.dmg" out/Bear-VPN-macos.dmg
           (cd out && sha256sum * > SHA256SUMS.txt)
           ls -la out
       - uses: softprops/action-gh-release@v2

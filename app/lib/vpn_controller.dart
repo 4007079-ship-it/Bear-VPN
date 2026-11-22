@@ -8,6 +8,8 @@ import 'package:flutter_vless/flutter_vless.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
 
 import 'core_tweaks.dart';
+import 'linux_core.dart';
+import 'unix_proxy_guard.dart';
 import 'windows_proxy_guard.dart';
 
 enum VpnState { disconnected, connecting, connected, disconnecting }
@@ -33,7 +35,10 @@ enum ConnectionMode {
   /// Режимы, доступные на этой платформе.
   static List<ConnectionMode> get available => Platform.isWindows
       ? const [ConnectionMode.proxy, ConnectionMode.systemProxy, ConnectionMode.vpn]
-      : const [ConnectionMode.proxy, ConnectionMode.vpn];
+      : (Platform.isMacOS || Platform.isLinux)
+          // macOS: VPN требует подписи Apple; Linux: прав root — пока без них.
+          ? const [ConnectionMode.proxy, ConnectionMode.systemProxy]
+          : const [ConnectionMode.proxy, ConnectionMode.vpn];
 }
 
 /// Подключение через ядро Xray (плагин flutter_vless).
@@ -63,7 +68,10 @@ class VpnController extends ChangeNotifier {
   int downloadSpeed = 0;
   int? delayMs;
 
-  static bool get proxyOnlyMode => Platform.isWindows;
+  /// Компьютер (Windows, macOS, Linux): состоянием подключения управляет
+  /// само приложение по своей проверке связи, а не статусы плагина.
+  static bool get proxyOnlyMode =>
+      Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
   /// Можно ли подключиться к узлу в этой сборке.
   static String? unsupportedReason(ProxyNode n) => switch (n.protocol) {
@@ -79,6 +87,15 @@ class VpnController extends ChangeNotifier {
   /// При запуске: если прошлый сеанс оставил наш системный прокси
   /// (приложение закрыли без «Отключить» или оно упало) — вернуть настройки.
   Future<void> recoverOnStartup() async {
+    if (Platform.isMacOS || Platform.isLinux) {
+      if (Platform.isLinux) await LinuxXray.killOrphan();
+      if (await UnixProxyGuard.restoreIfOurs()) {
+        info = 'Прошлый сеанс завершился без отключения — системный прокси '
+            'восстановлен, интернет работает напрямую.';
+        notifyListeners();
+      }
+      return;
+    }
     if (!Platform.isWindows) {
       // Android: VPN-служба живёт отдельно от экрана. После сворачивания или
       // перезапуска приложения сразу подписываемся на её статусы, чтобы
@@ -112,6 +129,10 @@ class VpnController extends ChangeNotifier {
     if (Platform.isWindows) {
       if (!winVpn) await killOwnXray();
       await WindowsProxyGuard.restoreIfOurs();
+    }
+    if (Platform.isLinux) await LinuxXray.stop();
+    if (Platform.isMacOS || Platform.isLinux) {
+      await UnixProxyGuard.restoreIfOurs();
     }
   }
 
@@ -169,7 +190,7 @@ class VpnController extends ChangeNotifier {
   ConnectionMode? _activeMode;
 
   ConnectionMode mode =
-      Platform.isWindows ? ConnectionMode.systemProxy : ConnectionMode.vpn;
+      proxyOnlyMode ? ConnectionMode.systemProxy : ConnectionMode.vpn;
 
   /// Локальные порты ядра (для режима «Прокси»).
   int? httpPort;
@@ -177,7 +198,8 @@ class VpnController extends ChangeNotifier {
 
   static const _modeKey = 'bear.mode.v1';
   static const _prefs = FlutterSecureStorage(
-      aOptions: AndroidOptions(encryptedSharedPreferences: true));
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      mOptions: MacOsOptions(useDataProtectionKeyChain: false));
 
   /// Включаемые настройки ядра (экран «Настройки»).
   CoreSettings settings = CoreSettings();
@@ -284,7 +306,7 @@ class VpnController extends ChangeNotifier {
       _activeMode = mode;
       notifyListeners();
 
-      await _init();
+      if (!Platform.isLinux) await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
       _startLog.clear();
       final baseConfig = _applySettings(node,
@@ -370,7 +392,7 @@ class VpnController extends ChangeNotifier {
       state = VpnState.disconnected;
       activeNodeId = null;
       error = _humanError(e);
-      if (proxyOnlyMode) await WindowsProxyGuard.restoreIfOurs();
+      if (proxyOnlyMode) await _guardRestoreIfOurs();
       notifyListeners();
     }
   }
@@ -410,8 +432,8 @@ class VpnController extends ChangeNotifier {
           '(кнопка ниже) или выберите «Системный прокси».');
     }
     await _resetWindowsCore();
-    await WindowsProxyGuard.restoreIfOurs();
-    await WindowsProxyGuard.rememberBefore();
+    await _guardRestoreIfOurs();
+    await _guardRememberBefore();
     info = null;
     upload = download = uploadSpeed = downloadSpeed = 0;
 
@@ -434,6 +456,20 @@ class VpnController extends ChangeNotifier {
         'HTTP: ${httpPort ?? '-'}, SOCKS: ${socksPort ?? '-'}');
 
     final nodeId = node.id;
+    if (Platform.isLinux) {
+      await LinuxXray.start(config);
+      _startLog.add('xray: запущен');
+      unawaited(_confirmByProbe(nodeId));
+      _watchdog?.cancel();
+      _watchdog = Timer(const Duration(seconds: 25), () {
+        if (state == VpnState.connecting && activeNodeId == nodeId) {
+          error = 'За 25 секунд связь через сервер не появилась. '
+              'Откройте «Логи» и пришлите текст.';
+          notifyListeners();
+        }
+      });
+      return;
+    }
     unawaited(_vless
         .startVless(
           remark: node.name,
@@ -480,6 +516,10 @@ class VpnController extends ChangeNotifier {
   /// Остановить сессию плагина; если он не отвечает — завершить наш
   /// xray.exe (только из папки приложения, чужие клиенты не трогаем).
   Future<void> _resetWindowsCore() async {
+    if (Platform.isLinux) {
+      await LinuxXray.stop();
+      return;
+    }
     try {
       await _vless.stopVless().timeout(const Duration(seconds: 3));
       _startLog.add('остановка сессии: ок');
@@ -488,6 +528,22 @@ class VpnController extends ChangeNotifier {
     }
     final killed = await killOwnXray();
     if (killed > 0) _startLog.add('завершено зависших xray.exe: $killed');
+  }
+
+  static Future<void> _guardRestoreIfOurs() async {
+    if (Platform.isWindows) {
+      await WindowsProxyGuard.restoreIfOurs();
+    } else {
+      await UnixProxyGuard.restoreIfOurs();
+    }
+  }
+
+  static Future<void> _guardRememberBefore() async {
+    if (Platform.isWindows) {
+      await WindowsProxyGuard.rememberBefore();
+    } else {
+      await UnixProxyGuard.rememberBefore();
+    }
   }
 
   static Future<int> killOwnXray({String name = 'xray'}) async {
@@ -528,7 +584,18 @@ class VpnController extends ChangeNotifier {
         delayMs = d;
         error = null;
         _connectedAt = started;
-        if (mode == ConnectionMode.proxy) {
+        if (!Platform.isWindows) {
+          // macOS/Linux: системный прокси включает само приложение.
+          if (mode == ConnectionMode.systemProxy && httpPort != null) {
+            unawaited(UnixProxyGuard.applyOurs(httpPort!, socksPort)
+                .then((err) {
+              if (err != null) {
+                info = err;
+                notifyListeners();
+              }
+            }));
+          }
+        } else if (mode == ConnectionMode.proxy) {
           // Режим «Прокси»: ядро работает на локальных портах, а системный
           // прокси Windows возвращаем как было.
           unawaited(WindowsProxyGuard.restorePrevious());
@@ -716,8 +783,12 @@ class VpnController extends ChangeNotifier {
       // Windows VPN (TUN): ядро обязано само снять маршруты и адаптер,
       // поэтому ждём дольше и процесс не убиваем.
       final winVpn = proxyOnlyMode && _activeMode == ConnectionMode.vpn;
-      await _vless.stopVless().timeout(Duration(
-          seconds: winVpn ? 15 : (proxyOnlyMode ? 4 : 10)));
+      if (Platform.isLinux) {
+        await LinuxXray.stop();
+      } else {
+        await _vless.stopVless().timeout(Duration(
+            seconds: winVpn ? 15 : (proxyOnlyMode ? 4 : 10)));
+      }
     } catch (e) {
       if (!proxyOnlyMode) error = _humanError(e);
       if (proxyOnlyMode && _activeMode == ConnectionMode.vpn) {
@@ -727,7 +798,7 @@ class VpnController extends ChangeNotifier {
     } finally {
       if (proxyOnlyMode) {
         if (_activeMode != ConnectionMode.vpn) await killOwnXray();
-        await WindowsProxyGuard.restoreIfOurs();
+        await _guardRestoreIfOurs();
       }
       _activeMode = null;
       _stopStats();
@@ -749,6 +820,14 @@ class VpnController extends ChangeNotifier {
       ..writeln('Режим: ${mode.label}')
       ..writeln('Настройки: ${jsonEncode(settings.toJson())}')
       ..writeln('Состояние: ${state.name}');
+    if (Platform.isLinux) {
+      b
+        ..writeln('Ядро: ${LinuxXray.exe} — '
+            '${File(LinuxXray.exe).existsSync() ? 'есть' : 'НЕТ'}')
+        ..writeln('--- вывод ядра ---')
+        ..writeAll(LinuxXray.recentOutput, '\n')
+        ..writeln();
+    }
     if (Platform.isWindows) {
       final dir = File(Platform.resolvedExecutable).parent.path;
       for (final f in [
@@ -761,7 +840,7 @@ class VpnController extends ChangeNotifier {
         b.writeln('$f: ${File('$dir\\$f').existsSync() ? 'есть' : 'НЕТ'}');
       }
     }
-    try {
+    if (!Platform.isLinux) try {
       await _init();
       b.writeln('Ядро: ${await _vless.getCoreVersion()}');
     } catch (e) {
