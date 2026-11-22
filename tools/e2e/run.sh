@@ -119,8 +119,9 @@ printf '| Проверка | Итог | Ответ | Время, с | 5 МБ, М
 for f in cfg/*.json; do
   name=$(basename "$f" .json)
   port=$(jq -r '[.inbounds[] | select(.protocol=="socks")][0].port' "$f")
-  jq '.log = {"loglevel":"debug"}' "$f" > "$f.dbg"
-  "$XRAY" run -c "$f.dbg" > "logs/$name.log" 2>&1 &
+  mkdir -p dbg
+  jq '.log = {"loglevel":"debug"}' "$f" > "dbg/$name.json"
+  "$XRAY" run -c "dbg/$name.json" > "logs/$name.log" 2>&1 &
   pid=$!
   for _ in $(seq 1 50); do
     (exec 3<>/dev/tcp/127.0.0.1/"$port") 2>/dev/null && break; sleep 0.2
@@ -135,7 +136,7 @@ for f in cfg/*.json; do
     speed=$(awk -v b="${dl_bps:-0}" 'BEGIN{printf "%.0f", b*8/1000000}')
     [[ "$dl_code" == 200 && "${dl_size:-0}" -ge 5000000 ]] || { dl_ok=false; speed="сбой ($dl_code, ${dl_size:-0} Б)"; }
   fi
-  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null || true
+  kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true
   http=${code%% *}; t=${code#* }
   works=false; [[ "$http" == 204 ]] && $dl_ok && works=true
   expect_fail=false; [[ "$name" == *control-wrong-key* || "$name" == plain__dead ]] && expect_fail=true
