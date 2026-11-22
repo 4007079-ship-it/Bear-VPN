@@ -27,6 +27,20 @@ enum ServerIp {
   const ServerIp(this.xray, this.label);
 }
 
+/// Отпечатки uTLS, которые понимает Xray (как выглядит начало TLS-соединения).
+const utlsFingerprints = <(String, String)>[
+  ('chrome', 'Chrome'),
+  ('firefox', 'Firefox'),
+  ('safari', 'Safari'),
+  ('ios', 'iOS'),
+  ('android', 'Android'),
+  ('edge', 'Edge'),
+  ('360', '360 Browser'),
+  ('qq', 'QQ Browser'),
+  ('random', 'Случайный браузер'),
+  ('randomized', 'Случайный, каждый раз новый'),
+];
+
 /// Включаемые настройки ядра. По умолчанию всё выключено — Bear работает
 /// как обычно.
 class CoreSettings {
@@ -51,6 +65,9 @@ class CoreSettings {
   /// Каким IP подключаться к серверу.
   ServerIp serverIp;
 
+  /// Отпечаток uTLS для всех серверов с TLS/Reality (null — как в ссылке).
+  String? fingerprint;
+
   CoreSettings({
     this.fragment = false,
     this.fragmentLength = '100-200',
@@ -62,10 +79,16 @@ class CoreSettings {
     this.maxServers = 8,
     this.ipv6Traffic = true,
     this.serverIp = ServerIp.auto,
+    this.fingerprint,
   });
 
   bool get anyEnabled =>
-      fragment || xmux || multiServer || !ipv6Traffic || serverIp != ServerIp.auto;
+      fragment ||
+      xmux ||
+      multiServer ||
+      !ipv6Traffic ||
+      serverIp != ServerIp.auto ||
+      fingerprint != null;
 
   Map<String, Object?> toJson() => {
         'fragment': fragment,
@@ -78,6 +101,7 @@ class CoreSettings {
         'max_servers': maxServers,
         'ipv6_traffic': ipv6Traffic,
         'server_ip': serverIp.name,
+        'fingerprint': fingerprint,
       };
 
   factory CoreSettings.fromJson(Map<String, Object?> j) {
@@ -99,6 +123,9 @@ class CoreSettings {
       serverIp:
           ServerIp.values.where((e) => e.name == j['server_ip']).firstOrNull ??
               d.serverIp,
+      fingerprint: utlsFingerprints.any((f) => f.$1 == j['fingerprint'])
+          ? j['fingerprint'] as String
+          : null,
     );
   }
 
@@ -215,6 +242,25 @@ String applyCoreSettings(
       applied++;
     }
     log?.add('fragment: ${applied > 0 ? 'включён ($applied)' : 'нет TCP-серверов'}');
+  }
+
+  final fp = s.fingerprint;
+  if (fp != null) {
+    var applied = 0;
+    for (final o in proxies) {
+      final ss = _map(o, 'streamSettings');
+      if (ss == null) continue;
+      final key = switch (ss['security']) {
+        'tls' => 'tlsSettings',
+        'reality' => 'realitySettings',
+        _ => null,
+      };
+      if (key == null) continue;
+      final ts = _map(ss, key) ?? (ss[key] = <String, dynamic>{});
+      ts['fingerprint'] = fp;
+      applied++;
+    }
+    log?.add('отпечаток uTLS: $fp (${applied > 0 ? '$applied' : 'нет серверов с TLS'})');
   }
 
   if (s.serverIp.xray != null) {

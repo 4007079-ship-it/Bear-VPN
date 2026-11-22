@@ -70,6 +70,12 @@ void main() {
         'ipv6off__reality-tcp',
         applyCoreSettings(
             base(node('reality-tcp')), CoreSettings(ipv6Traffic: false)));
+    for (final fp in ['firefox', 'safari', 'randomized']) {
+      write('fp-${fp}__reality-tcp',
+          applyCoreSettings(base(node('reality-tcp')), CoreSettings(fingerprint: fp)));
+    }
+    write('fp-firefox__trojan-tls',
+        applyCoreSettings(base(node('trojan-tls')), CoreSettings(fingerprint: 'firefox')));
     write(
         'serverip4__reality-tcp',
         applyCoreSettings(

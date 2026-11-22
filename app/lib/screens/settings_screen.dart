@@ -106,6 +106,22 @@ class SettingsScreen extends StatelessWidget {
                   onChanged: (v) =>
                       vpn.updateSettings((s) => s.xmuxConnections = v),
                 ),
+              ListTile(
+                title: const Text('Отпечаток uTLS'),
+                subtitle: const Text(
+                    'Каким браузером представляться при подключении к серверу '
+                    '(TLS и Reality). «Как в ссылке» — параметр fp= из ключа.'),
+                trailing: DropdownButton<String?>(
+                  value: s.fingerprint,
+                  onChanged: (v) => vpn.updateSettings((s) => s.fingerprint = v),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('Как в ссылке')),
+                    for (final (id, label) in utlsFingerprints)
+                      DropdownMenuItem(value: id, child: Text(label)),
+                  ],
+                ),
+              ),
               const _Header('Серверы'),
               SwitchListTile(
                 title: const Text('Несколько серверов сразу'),
@@ -213,7 +229,8 @@ class SettingsScreen extends StatelessWidget {
         ..strategy = d.strategy
         ..maxServers = d.maxServers
         ..ipv6Traffic = d.ipv6Traffic
-        ..serverIp = d.serverIp;
+        ..serverIp = d.serverIp
+        ..fingerprint = d.fingerprint;
     });
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Настройки сброшены')));

@@ -130,4 +130,21 @@ void main() {
     expect(udp.single['type'], 'salamander');
     expect(udp.single['settings']['password'], 'secret');
   });
+
+  test('отпечаток uTLS заменяется у Reality, у Shadowsocks не появляется', () {
+    final j = run(config(outbound('tcp')), CoreSettings(fingerprint: 'firefox'));
+    expect((j['outbounds'] as List).first['streamSettings']['realitySettings']
+        ['fingerprint'], 'firefox');
+    final ss = run(
+        config({
+          'tag': 'proxy',
+          'protocol': 'shadowsocks',
+          'settings': {},
+          'streamSettings': {'network': 'tcp', 'security': 'none'},
+        }),
+        CoreSettings(fingerprint: 'firefox'));
+    final st = (ss['outbounds'] as List).first['streamSettings'] as Map;
+    expect(st.containsKey('tlsSettings'), isFalse);
+    expect(st.containsKey('realitySettings'), isFalse);
+  });
 }
