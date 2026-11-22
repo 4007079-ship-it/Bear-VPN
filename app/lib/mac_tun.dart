@@ -168,7 +168,7 @@ GW=\$(route -n get default 2>/dev/null | awk '/gateway:/{print \$2; exit}')
 GW6=\$(route -n get -inet6 default 2>/dev/null | awk '/gateway:/{print \$2; exit}')
 [ -n "\$GW" ] || { echo "нет подключения к интернету (шлюз не найден)" >&2; exit 1; }
 
-"\$T2S" -device "\$TUN" -proxy socks5://127.0.0.1:$socksPort -loglevel warning > "\$STATE/tun2socks.log" 2>&1 &
+"\$T2S" --device "\$TUN" --proxy socks5://127.0.0.1:$socksPort --loglevel warning > "\$STATE/tun2socks.log" 2>&1 &
 T2PID=\$!
 i=0
 while ! ifconfig "\$TUN" >/dev/null 2>&1; do
