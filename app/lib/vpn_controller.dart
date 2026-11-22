@@ -9,6 +9,7 @@ import 'package:smv_link_parser/smv_link_parser.dart';
 
 import 'core_tweaks.dart';
 import 'linux_core.dart';
+import 'mac_tun.dart';
 import 'unix_proxy_guard.dart';
 import 'windows_proxy_guard.dart';
 
@@ -35,8 +36,11 @@ enum ConnectionMode {
   /// Режимы, доступные на этой платформе.
   static List<ConnectionMode> get available => Platform.isWindows
       ? const [ConnectionMode.proxy, ConnectionMode.systemProxy, ConnectionMode.vpn]
-      : (Platform.isMacOS || Platform.isLinux)
-          // macOS: VPN требует подписи Apple; Linux: прав root — пока без них.
+      : Platform.isMacOS
+          // macOS: VPN — виртуальный адаптер с паролем администратора.
+          ? const [ConnectionMode.proxy, ConnectionMode.systemProxy, ConnectionMode.vpn]
+          : Platform.isLinux
+          // Linux: VPN требует прав root — пока без него.
           ? const [ConnectionMode.proxy, ConnectionMode.systemProxy]
           : const [ConnectionMode.proxy, ConnectionMode.vpn];
 }
@@ -118,6 +122,7 @@ class VpnController extends ChangeNotifier {
 
   /// При закрытии окна: отключиться и вернуть настройки прокси.
   Future<void> shutdown() async {
+    if (Platform.isMacOS) await MacTun.down();
     final winVpn = Platform.isWindows && _activeMode == ConnectionMode.vpn;
     if (state != VpnState.disconnected) {
       try {
@@ -400,8 +405,12 @@ class VpnController extends ChangeNotifier {
   /// Windows: плагин может так и не завершить startVless, хотя прокси уже
   /// работает. Поэтому не ждём его, а проверяем связь сами.
   /// Применить включённые настройки; при любой ошибке — исходный конфиг.
+  /// Адреса серверов текущего подключения (для маршрутов VPN на macOS).
+  List<String> _activeHosts = const [];
+
   String _applySettings(ProxyNode node, String config) {
     activeServers = 1;
+    _activeHosts = [node.server];
     if (!settings.anyEnabled) return config;
     final extra = <Map<String, dynamic>>[];
     if (settings.multiServer && multiServerAvailable && poolFor != null) {
@@ -414,6 +423,7 @@ class VpnController extends ChangeNotifier {
               n)) as Map;
           final o = (c['outbounds'] as List).first as Map;
           extra.add(o.cast<String, dynamic>());
+          _activeHosts = [..._activeHosts, n.server];
         } catch (_) {
           _startLog.add('несколько серверов: «${n.name}» пропущен');
         }
@@ -474,7 +484,8 @@ class VpnController extends ChangeNotifier {
         .startVless(
           remark: node.name,
           config: config,
-          proxyOnly: !vpnMode,
+          // macOS: ядро всегда как прокси; VPN даёт свой адаптер (MacTun).
+          proxyOnly: !vpnMode || Platform.isMacOS,
           notificationDisconnectButtonName: 'Отключить',
         )
         .then((_) => _startLog.add('startVless: завершён'),
@@ -580,6 +591,21 @@ class VpnController extends ChangeNotifier {
         }
       }
       if (d > 0 && state == VpnState.connecting && activeNodeId == nodeId) {
+        if (Platform.isMacOS && mode == ConnectionMode.vpn) {
+          // Пока macOS спрашивает пароль, сторожевой таймер не нужен.
+          _watchdog?.cancel();
+          final err = await MacTun.up(
+              socksPort: socksPort ?? 10807, serverHosts: _activeHosts);
+          if (err != null) {
+            _startLog.add('VPN (macOS): $err');
+            await disconnect();
+            error = err;
+            notifyListeners();
+            return;
+          }
+          _startLog.add('VPN (macOS): адаптер включён');
+          if (state != VpnState.connecting || activeNodeId != nodeId) return;
+        }
         state = VpnState.connected;
         delayMs = d;
         error = null;
@@ -782,7 +808,8 @@ class VpnController extends ChangeNotifier {
       notifyListeners();
       // Windows VPN (TUN): ядро обязано само снять маршруты и адаптер,
       // поэтому ждём дольше и процесс не убиваем.
-      final winVpn = proxyOnlyMode && _activeMode == ConnectionMode.vpn;
+      if (Platform.isMacOS) await MacTun.down();
+      final winVpn = Platform.isWindows && _activeMode == ConnectionMode.vpn;
       if (Platform.isLinux) {
         await LinuxXray.stop();
       } else {
@@ -791,7 +818,7 @@ class VpnController extends ChangeNotifier {
       }
     } catch (e) {
       if (!proxyOnlyMode) error = _humanError(e);
-      if (proxyOnlyMode && _activeMode == ConnectionMode.vpn) {
+      if (Platform.isWindows && _activeMode == ConnectionMode.vpn) {
         error = 'Ядро долго не отключало VPN. Если интернет пропал — '
             'перезапустите Bear VPN или компьютер.';
       }

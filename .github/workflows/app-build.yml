@@ -198,6 +198,19 @@ jobs:
       - name: Prepare flutter_vless (proxy-only)
         run: dart run flutter_vless:setup_macos_vpn --prepare-only
       - run: flutter build macos --release --dart-define=APP_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
+      - name: Bundle tun2socks (VPN mode)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APP="build/macos/Build/Products/Release/Bear VPN.app"
+          T="$APP/Contents/Resources/tun"; mkdir -p "$T"
+          gh release download -R xjasonlyu/tun2socks -p 'tun2socks-darwin-arm64.zip' -p 'tun2socks-darwin-amd64.zip' -D /tmp/t2s --clobber
+          for z in /tmp/t2s/*.zip; do unzip -qo "$z" -d "$T"; done
+          chmod +x "$T"/tun2socks-darwin-*
+          ls -la "$T"; file "$T"/*
+          # Пересобрать подпись (ad-hoc) после добавления файлов в .app
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep "$APP" && echo "подпись ок"
       - name: DMG
         run: |
           VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')

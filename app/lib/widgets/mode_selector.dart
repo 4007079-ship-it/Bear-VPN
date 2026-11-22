@@ -18,7 +18,10 @@ class ModeSelector extends StatelessWidget {
         ConnectionMode.vpn => Platform.isWindows
             ? 'Весь трафик компьютера, включая игры. Нужны права '
                 'администратора.'
-            : 'Весь трафик телефона идёт через сервер.',
+            : Platform.isMacOS
+                ? 'Весь трафик Mac, включая Telegram и игры. При подключении '
+                    'macOS спросит пароль администратора.'
+                : 'Весь трафик телефона идёт через сервер.',
       };
 
   @override
