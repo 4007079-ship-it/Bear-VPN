@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vless/flutter_vless.dart';
 import 'package:smv_link_parser/smv_link_parser.dart';
 import 'package:smv_vpn/core_tweaks.dart';
+import 'package:smv_vpn/mac_tun.dart';
 
 void main() {
   final linksPath = Platform.environment['E2E_LINKS'];
@@ -100,6 +101,13 @@ void main() {
           'multi-fastest__dead-first',
           applyCoreSettings(base(node('dead')),
               CoreSettings(multiServer: true), extraProxies: extras));
+    }
+
+    // macOS, режим VPN: адрес сервера-домена ядро узнаёт через свой DNS.
+    if (nodes.containsKey('reality-domain')) {
+      write('macvpn__reality-domain',
+          MacTun.patchConfig(base(node('reality-domain'))));
+      write('macvpn__reality-tcp', MacTun.patchConfig(base(node('reality-tcp'))));
     }
 
     // 4. Всё сразу.

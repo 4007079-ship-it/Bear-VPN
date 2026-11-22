@@ -437,6 +437,7 @@ class VpnController extends ChangeNotifier {
 
   Future<void> _connectWindows(ProxyNode node, String baseConfig) async {
     final vpnMode = mode == ConnectionMode.vpn;
+    if (Platform.isMacOS && vpnMode) baseConfig = MacTun.patchConfig(baseConfig);
     if (vpnMode && !await isWindowsAdmin()) {
       throw Exception('Для режима VPN запустите Bear VPN от имени администратора '
           '(кнопка ниже) или выберите «Системный прокси».');

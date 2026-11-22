@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 /// Режим VPN на macOS без подписи Apple: виртуальный адаптер utun через
@@ -23,6 +24,61 @@ class MacTun {
 
   static bool get active => _running.existsSync();
 
+  /// DNS для адреса самого сервера: идёт напрямую (у него свой маршрут
+  /// мимо адаптера), иначе ядро не сможет найти сервер по домену —
+  /// системный DNS в режиме VPN сам идёт через туннель.
+  static const bootstrapDns = '77.88.8.8';
+
+  /// Поправить конфиг ядра для режима VPN: адреса серверов-доменов
+  /// ядро узнаёт через [bootstrapDns] напрямую.
+  static String patchConfig(String config) {
+    try {
+      final j = (jsonDecode(config) as Map).cast<String, dynamic>();
+      final outs = [
+        for (final o in (j['outbounds'] as List? ?? const []))
+          if (o is Map) o.cast<String, dynamic>()
+      ];
+      final direct = outs.firstWhere((o) => o['protocol'] == 'freedom',
+          orElse: () {
+        final d = <String, dynamic>{'tag': 'direct', 'protocol': 'freedom'};
+        outs.add(d);
+        return d;
+      });
+      for (final o in outs) {
+        if (const {'freedom', 'blackhole', 'dns'}.contains(o['protocol'])) {
+          continue;
+        }
+        final ss = (o['streamSettings'] as Map?)?.cast<String, dynamic>() ??
+            <String, dynamic>{};
+        final sock = (ss['sockopt'] as Map?)?.cast<String, dynamic>() ??
+            <String, dynamic>{};
+        sock.putIfAbsent('domainStrategy', () => 'UseIPv4');
+        ss['sockopt'] = sock;
+        o['streamSettings'] = ss;
+      }
+      j['outbounds'] = outs;
+      j['dns'] = {
+        'tag': 'bear_dns',
+        'servers': [bootstrapDns],
+        'queryStrategy': 'UseIPv4',
+      };
+      final routing = (j['routing'] as Map?)?.cast<String, dynamic>() ??
+          <String, dynamic>{};
+      routing['rules'] = [
+        {
+          'type': 'field',
+          'inboundTag': ['bear_dns'],
+          'outboundTag': direct['tag'],
+        },
+        ...(routing['rules'] as List? ?? const []),
+      ];
+      j['routing'] = routing;
+      return jsonEncode(j);
+    } catch (_) {
+      return config;
+    }
+  }
+
   static String _q(String s) => "'${s.replaceAll("'", "'\\''")}'";
 
   /// Включить адаптер. [serverHosts] — адреса серверов: им нужен маршрут
@@ -32,7 +88,7 @@ class MacTun {
     required int socksPort,
     required List<String> serverHosts,
   }) async {
-    final ips4 = <String>{}, ips6 = <String>{};
+    final ips4 = <String>{bootstrapDns}, ips6 = <String>{};
     for (final h in serverHosts) {
       try {
         for (final a in await InternetAddress.lookup(h)) {
@@ -40,7 +96,7 @@ class MacTun {
         }
       } catch (_) {}
     }
-    if (ips4.isEmpty && ips6.isEmpty) {
+    if (ips4.length == 1 && ips6.isEmpty) {
       return 'Не удалось узнать IP-адрес сервера';
     }
     await _state.create(recursive: true);
@@ -109,7 +165,6 @@ xattr -d com.apple.quarantine "\$T2S" 2>/dev/null
 [ -x "\$T2S" ] || { echo "нет файла tun2socks" >&2; exit 1; }
 
 GW=\$(route -n get default 2>/dev/null | awk '/gateway:/{print \$2; exit}')
-IF4=\$(route -n get default 2>/dev/null | awk '/interface:/{print \$2; exit}')
 GW6=\$(route -n get -inet6 default 2>/dev/null | awk '/gateway:/{print \$2; exit}')
 [ -n "\$GW" ] || { echo "нет подключения к интернету (шлюз не найден)" >&2; exit 1; }
 

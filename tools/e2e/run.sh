@@ -102,6 +102,7 @@ hysteria2://$PASS@127.0.0.1:20009?sni=bear.test&pcs=$PCS&obfs=salamander&obfs-pa
 hysteria2://$PASS@127.0.0.1:20007?sni=bear.test#info-hy2-system-ca
 trojan://$PASS@127.0.0.1:20005?security=tls&sni=bear.test&type=tcp&allowInsecure=1#info-trojan-insecure
 vless://$UUID@127.0.0.1:20008?security=tls&sni=bear.test&type=ws&path=%2Fvl&host=bear.test&pcs=$PCS#vless-ws-tls
+vless://$UUID@localtest.me:20001?$R&type=tcp&flow=xtls-rprx-vision#reality-domain
 vless://$UUID@127.0.0.1:29999?$R&type=tcp&flow=xtls-rprx-vision#dead
 vless://$UUID@127.0.0.1:20001?security=reality&sni=www.microsoft.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=a1b2&fp=chrome&type=tcp&flow=xtls-rprx-vision#control-wrong-key
 LINKS
