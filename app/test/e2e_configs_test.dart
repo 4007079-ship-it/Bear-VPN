@@ -71,7 +71,7 @@ void main() {
         'ipv6off__reality-tcp',
         applyCoreSettings(
             base(node('reality-tcp')), CoreSettings(ipv6Traffic: false)));
-    for (final fp in ['firefox', 'safari', 'randomized']) {
+    for (final fp in ['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized']) {
       write('fp-${fp}__reality-tcp',
           applyCoreSettings(base(node('reality-tcp')), CoreSettings(fingerprint: fp)));
     }
