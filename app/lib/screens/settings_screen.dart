@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core_tweaks.dart';
 import '../vpn_controller.dart';
+import '../widgets/mode_selector.dart';
 
 /// Включаемые настройки. Всё выключено по умолчанию — Bear VPN работает как
 /// обычно; включать по одной, если начались проблемы с блокировками.
@@ -43,6 +44,25 @@ class SettingsScreen extends StatelessWidget {
                     'Отключитесь и подключитесь снова.',
                     style: TextStyle(color: cs.onSecondaryContainer),
                   ),
+                ),
+              const _Header('Режим подключения'),
+              for (final m in ConnectionMode.available)
+                ListTile(
+                  enabled: !connected,
+                  leading: Icon(
+                      vpn.mode == m
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: vpn.mode == m ? cs.primary : null),
+                  title: Text(m.label),
+                  subtitle: Text(ModeSelector.hint(m)),
+                  onTap: () => vpn.setMode(m),
+                ),
+              if (connected)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Text('Режим меняется после отключения.',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                 ),
               const _Header('Обход блокировок'),
               SwitchListTile(

@@ -71,34 +71,3 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 }
-
-/// Вкладка «О программе».
-class AboutScreen extends StatelessWidget {
-  const AboutScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('О программе')),
-      body: const SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Text(
-          'Bear VPN — тестовая сборка.\nРазработчик: SMV.\n\n'
-          'Подключение через ядро Xray: VLESS (Reality, XHTTP), VMess, '
-          'Trojan, Shadowsocks, Hysteria2, SOCKS.\n\n'
-          'Android — режим VPN. Windows — режим системного прокси: без прав '
-          'администратора и без VPN-адаптера; через него работают браузеры '
-          'и программы, использующие системный прокси. При отключении и '
-          'закрытии программы прежние настройки прокси Windows '
-          'восстанавливаются.\n\n'
-          'AmneziaWG, WireGuard и TUIC пока только импортируются — '
-          'подключение к ним появится позже.\n\n'
-          'Ссылки, ключи и QR разбираются на устройстве, без сетевых '
-          'запросов. Список серверов пока хранится в памяти и очищается '
-          'при перезапуске.',
-          style: TextStyle(fontSize: 15, height: 1.4),
-        ),
-      ),
-    );
-  }
-}

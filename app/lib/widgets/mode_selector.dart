@@ -16,7 +16,7 @@ class ModeSelector extends StatelessWidget {
         ConnectionMode.systemProxy => 'Браузеры и большинство программ '
             'идут через сервер. Игры и часть программ — напрямую.',
         ConnectionMode.vpn => Platform.isWindows
-            ? 'Экспериментально. Весь трафик компьютера. Нужны права '
+            ? 'Весь трафик компьютера, включая игры. Нужны права '
                 'администратора.'
             : 'Весь трафик телефона идёт через сервер.',
       };
@@ -44,15 +44,7 @@ class ModeSelector extends StatelessWidget {
           selected: {vpn.mode},
           onSelectionChanged: locked ? null : (s) => vpn.setMode(s.first),
         ),
-        const SizedBox(height: 6),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Text(
-            locked ? '${hint(vpn.mode)}\nРежим меняется после отключения.' : hint(vpn.mode),
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-        ),
+        const SizedBox(height: 4),
         if (vpn.state == VpnState.connected && vpn.activeServers > 1)
           Padding(
             padding: const EdgeInsets.only(top: 4),

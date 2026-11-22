@@ -155,6 +155,37 @@ class NodesStore extends ChangeNotifier {
     _queueSave();
   }
 
+  void renameNode(String id, String name) {
+    final i = _nodes.indexWhere((n) => n.id == id);
+    if (i < 0 || name.trim().isEmpty) return;
+    _nodes[i] = _nodes[i].copyWith(name: name.trim());
+    notifyListeners();
+    _queueSave();
+  }
+
+  /// Серверы, добавленные вручную (не из подписок) — профиль «Мои серверы».
+  List<ProxyNode> get manualNodes =>
+      [for (final n in _nodes) if (subscriptionOf(n) == null) n];
+
+  void removeManual() {
+    _nodes.removeWhere((n) => subscriptionOf(n) == null);
+    if (!_nodes.any((n) => n.id == selectedId)) {
+      selectedId = _nodes.isEmpty ? null : _nodes.first.id;
+    }
+    notifyListeners();
+    _queueSave();
+  }
+
+  void updateSubscription(Subscription sub,
+      {String? name, int? intervalHours}) {
+    if (name != null && name.trim().isNotEmpty) sub.name = name.trim();
+    if (intervalHours != null && intervalHours > 0) {
+      sub.intervalHours = intervalHours;
+    }
+    notifyListeners();
+    _queueSave();
+  }
+
   // ------------------------------------------------------------------
   // Подписки
 

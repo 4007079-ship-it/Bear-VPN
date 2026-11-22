@@ -38,5 +38,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/author.png
     - assets/tray_on.ico
     - assets/tray_off.ico

@@ -59,16 +59,6 @@ class HomeScreen extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 22, fontWeight: FontWeight.w600)),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text('test', style: TextStyle(fontSize: 12)),
-                    ),
                     const Spacer(),
                     IconButton(
                       tooltip: 'Добавить сервер',

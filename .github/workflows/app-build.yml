@@ -47,7 +47,7 @@ jobs:
           grep -n "minSdk\|useLegacyPackaging" android/app/build.gradle.kts
       - run: flutter pub get
       - run: flutter test
-      - run: flutter build apk --release
+      - run: flutter build apk --release --dart-define=APP_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
       - name: Rename APK
         run: cp build/app/outputs/flutter-apk/app-release.apk build/Bear-VPN-test.apk
       - uses: actions/upload-artifact@v4
@@ -80,8 +80,15 @@ jobs:
           Select-String -Path windows/CMakeLists.txt -Pattern BINARY_NAME | Select-Object -First 1
           Select-String -Path windows/runner/Runner.rc -Pattern 'VALUE "'
           Copy-Item branding/windows/app_icon.ico windows/runner/resources/app_icon.ico -Force
+          # Размер окна как у Hiddify
+          (Get-Content windows/runner/main.cpp) -replace 'Win32Window::Size size\(1280, 720\)', 'Win32Window::Size size(1060, 800)' | Set-Content windows/runner/main.cpp
+          Select-String -Path windows/runner/main.cpp -Pattern 'Size size'
       - run: flutter pub get
-      - run: flutter build windows --release
+      - name: Build Windows
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          flutter build windows --release --dart-define=APP_VERSION=$ver
       - name: Bundle Xray core (system proxy mode)
         shell: pwsh
         run: |
@@ -137,9 +144,11 @@ jobs:
           flutter create --platforms=linux --org com.smv --project-name smv_vpn .
           sed -i 's/set(BINARY_NAME "smv_vpn")/set(BINARY_NAME "bear-vpn")/' linux/CMakeLists.txt
           sed -i 's/"smv_vpn"/"Bear VPN"/g' linux/runner/my_application.cc
+          sed -i 's/gtk_window_set_default_size(window, 1280, 720)/gtk_window_set_default_size(window, 1060, 800)/' linux/runner/my_application.cc
+          grep -n "set_default_size" linux/runner/my_application.cc
           grep -n 'BINARY_NAME "' linux/CMakeLists.txt; grep -n '"Bear VPN"' linux/runner/my_application.cc
       - run: flutter pub get
-      - run: flutter build linux --release
+      - run: flutter build linux --release --dart-define=APP_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
       - name: Bundle Xray core
         run: |
           B=build/linux/x64/release/bundle
@@ -181,11 +190,14 @@ jobs:
           # flutter_vless требует macOS 13+
           sed -i '' "s/platform :osx, '[0-9.]*'/platform :osx, '13.0'/" macos/Podfile
           sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = [0-9.]*;/MACOSX_DEPLOYMENT_TARGET = 13.0;/g' macos/Runner.xcodeproj/project.pbxproj
+          # Размер окна как у Hiddify
+          perl -0pi -e 's/(self\.setFrame\(windowFrame, display: true\))/$1\n    self.setContentSize(NSSize(width: 1060, height: 800))\n    self.center()/' macos/Runner/MainFlutterWindow.swift
+          grep -n "setContentSize" macos/Runner/MainFlutterWindow.swift
           cat macos/Runner/Configs/AppInfo.xcconfig; grep -n "platform :osx" macos/Podfile
       - run: flutter pub get
       - name: Prepare flutter_vless (proxy-only)
         run: dart run flutter_vless:setup_macos_vpn --prepare-only
-      - run: flutter build macos --release
+      - run: flutter build macos --release --dart-define=APP_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')
       - name: DMG
         run: |
           VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*([0-9.]+).*/\1/')

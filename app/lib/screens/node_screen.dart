@@ -122,85 +122,86 @@ class _NodeScreenState extends State<NodeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _share(context, n),
+        onPressed: () => shareNode(context, n),
         icon: const Icon(Icons.qr_code_2),
         label: const Text('Поделиться / QR'),
       ),
     );
   }
+}
 
-  Future<void> _share(BuildContext context, ProxyNode n) async {
-    if (containsSecrets(n)) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('QR содержит ключи доступа'),
-          content: const Text(
-              'Любой, кто увидит этот QR-код или текст, сможет подключиться '
-              'к серверу. Показывайте его только тем, кому доверяете.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Отмена')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Показать')),
-          ],
-        ),
-      );
-      if (ok != true || !context.mounted) return;
-    }
-    final text = shareUri(n);
-    await showDialog<void>(
+/// «Поделиться»: QR-код и копирование ссылки (с предупреждением о ключах).
+Future<void> shareNode(BuildContext context, ProxyNode n) async {
+  if (containsSecrets(n)) {
+    final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(n.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        content: SizedBox(
-          width: 340,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(12),
-                child: QrImageView(
-                  data: text,
-                  version: QrVersions.auto,
-                  size: 300,
-                  backgroundColor: Colors.white,
-                  errorStateBuilder: (context, error) => const SizedBox(
-                    height: 120,
-                    child: Center(
-                      child: Text(
-                        'Данные слишком длинные для QR-кода. '
-                        'Скопируйте текст.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.black),
-                      ),
+        title: const Text('QR содержит ключи доступа'),
+        content: const Text(
+            'Любой, кто увидит этот QR-код или текст, сможет подключиться '
+            'к серверу. Показывайте его только тем, кому доверяете.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Показать')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+  }
+  final text = shareUri(n);
+  await showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(n.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(12),
+              child: QrImageView(
+                data: text,
+                version: QrVersions.auto,
+                size: 300,
+                backgroundColor: Colors.white,
+                errorStateBuilder: (context, error) => const SizedBox(
+                  height: 120,
+                  child: Center(
+                    child: Text(
+                      'Данные слишком длинные для QR-кода. '
+                      'Скопируйте текст.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text('${text.length} символов',
-                  style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Text('${text.length} символов',
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
         ),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.copy),
-            label: const Text('Копировать'),
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              if (context.mounted) Navigator.pop(context);
-            },
-          ),
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Закрыть')),
-        ],
       ),
-    );
-  }
+      actions: [
+        TextButton.icon(
+          icon: const Icon(Icons.copy),
+          label: const Text('Копировать'),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: text));
+            if (context.mounted) Navigator.pop(context);
+          },
+        ),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Закрыть')),
+      ],
+    ),
+  );
 }
