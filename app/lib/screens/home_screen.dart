@@ -6,6 +6,7 @@ import 'package:smv_link_parser/smv_link_parser.dart';
 import '../import_flow.dart';
 import '../nodes_store.dart';
 import '../vpn_controller.dart';
+import '../widgets/exit_ip.dart';
 import '../widgets/logo.dart';
 import '../widgets/mode_selector.dart';
 import '../widgets/node_info.dart';
@@ -171,6 +172,13 @@ class HomeScreen extends StatelessWidget {
                                   : vpn.delayMs! < 0
                                       ? 'Пинг: ошибка'
                                       : 'Пинг ${vpn.delayMs} мс'),
+                            ),
+                            ExitIpCard(
+                              vpn: vpn,
+                              serverAddress: store.nodes
+                                  .where((n) => n.id == vpn.activeNodeId)
+                                  .firstOrNull
+                                  ?.address,
                             ),
                           ],
                           Padding(

@@ -287,7 +287,8 @@ class VpnController extends ChangeNotifier {
       await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
       _startLog.clear();
-      final baseConfig = _applySettings(node, parsed.getFullConfiguration());
+      final baseConfig = _applySettings(node,
+          applyNodeFixups(parsed.getFullConfiguration(), node, log: _startLog));
       if (proxyOnlyMode) {
         await _connectWindows(node, baseConfig);
         return;
@@ -386,8 +387,9 @@ class VpnController extends ChangeNotifier {
         if (n.id == node.id || unsupportedReason(n) != null) continue;
         if (extra.length >= settings.maxServers - 1) break;
         try {
-          final c = jsonDecode(FlutterVless.parseFromURL(nodeToUri(n))
-              .getFullConfiguration()) as Map;
+          final c = jsonDecode(applyNodeFixups(
+              FlutterVless.parseFromURL(nodeToUri(n)).getFullConfiguration(),
+              n)) as Map;
           final o = (c['outbounds'] as List).first as Map;
           extra.add(o.cast<String, dynamic>());
         } catch (_) {
@@ -781,6 +783,53 @@ class VpnController extends ChangeNotifier {
     return b.toString();
   }
 
+  // ------------------------------------------------------------------
+  // IP-адрес выхода: куда на самом деле видят подключение сайты.
+
+  ExitIpInfo? exitIp;
+  bool exitIpLoading = false;
+  String? _exitIpFor;
+
+  @override
+  void notifyListeners() {
+    if (state == VpnState.connected) {
+      final key = '$activeNodeId/$_activeMode';
+      if (_exitIpFor != key) {
+        _exitIpFor = key;
+        exitIp = null;
+        Future<void>.delayed(const Duration(milliseconds: 300), lookupExitIp);
+      }
+    } else if (_exitIpFor != null) {
+      _exitIpFor = null;
+      exitIp = null;
+      exitIpLoading = false;
+    }
+    super.notifyListeners();
+  }
+
+  /// Узнать внешний IP через туннель. В режиме «Прокси» на Android без
+  /// своего порта проверки запрос пошёл бы мимо сервера — тогда не спрашиваем.
+  Future<void> lookupExitIp() async {
+    if (state != VpnState.connected || exitIpLoading) return;
+    final port = _probePort;
+    if (port == null && mode == ConnectionMode.proxy) return;
+    exitIpLoading = true;
+    super.notifyListeners();
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 8)
+      ..userAgent = 'BearVPN';
+    if (port != null) client.findProxy = (_) => 'PROXY 127.0.0.1:$port';
+    try {
+      exitIp = await ExitIpInfo.fetch(client);
+    } catch (_) {
+      exitIp = const ExitIpInfo(ip: '', failed: true);
+    } finally {
+      client.close(force: true);
+      exitIpLoading = false;
+      if (state == VpnState.connected) super.notifyListeners();
+    }
+  }
+
   Future<void> measureDelay() async {
     try {
       final own = await _probeOnce();
@@ -817,4 +866,63 @@ String formatBytes(int b) {
 String formatDuration(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
+}
+
+/// Внешний IP и где он находится.
+class ExitIpInfo {
+  final String ip;
+  final String? country;
+  final String? countryCode;
+  final String? city;
+  final String? isp;
+  final bool failed;
+
+  const ExitIpInfo({
+    required this.ip,
+    this.country,
+    this.countryCode,
+    this.city,
+    this.isp,
+    this.failed = false,
+  });
+
+  /// Флаг страны из двухбуквенного кода (🇩🇪).
+  String get flag {
+    final c = countryCode?.toUpperCase();
+    if (c == null || c.length != 2) return '';
+    return String.fromCharCodes(c.codeUnits.map((u) => 0x1F1E6 + u - 65));
+  }
+
+  String get place => [
+        if (city != null && city!.isNotEmpty) city!,
+        if (country != null && country!.isNotEmpty) country!,
+      ].join(', ');
+
+  static Future<ExitIpInfo> fetch(HttpClient client) async {
+    Future<Map<String, dynamic>> getJson(String url) async {
+      final req =
+          await client.getUrl(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final res = await req.close().timeout(const Duration(seconds: 10));
+      final body = await res.transform(utf8.decoder).join();
+      if (res.statusCode != 200) throw HttpException('HTTP ${res.statusCode}');
+      return (jsonDecode(body) as Map).cast<String, dynamic>();
+    }
+
+    try {
+      final j = await getJson('https://ipwho.is/?lang=ru');
+      if (j['success'] == false) throw const FormatException('ipwho.is');
+      final conn = j['connection'];
+      return ExitIpInfo(
+        ip: j['ip'] as String,
+        country: j['country'] as String?,
+        countryCode: j['country_code'] as String?,
+        city: j['city'] as String?,
+        isp: conn is Map ? (conn['isp'] ?? conn['org']) as String? : null,
+      );
+    } catch (_) {
+      // Запасной сервис: только адрес.
+      final j = await getJson('https://api.ipify.org?format=json');
+      return ExitIpInfo(ip: j['ip'] as String);
+    }
+  }
 }

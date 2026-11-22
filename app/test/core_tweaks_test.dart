@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smv_link_parser/smv_link_parser.dart';
 import 'package:smv_vpn/core_tweaks.dart';
 
 Map<String, dynamic> outbound(String network, {String protocol = 'vless'}) => {
@@ -114,5 +115,19 @@ void main() {
     final j = run(config(outbound('tcp')), CoreSettings(serverIp: ServerIp.ipv4));
     expect((j['outbounds'] as List).first['streamSettings']['sockopt']
         ['domainStrategy'], 'UseIPv4');
+  });
+
+  test('hysteria2 salamander → finalmask.udp', () {
+    final node = const LinkParser()
+        .parse('hysteria2://pw@1.2.3.4:443?sni=a.example.com'
+            '&obfs=salamander&obfs-password=secret#H')
+        .nodes
+        .single;
+    final c = config(outbound('hysteria', protocol: 'hysteria'));
+    final j = jsonDecode(applyNodeFixups(c, node)) as Map<String, dynamic>;
+    final udp = (j['outbounds'] as List).first['streamSettings']['finalmask']
+        ['udp'] as List;
+    expect(udp.single['type'], 'salamander');
+    expect(udp.single['settings']['password'], 'secret');
   });
 }

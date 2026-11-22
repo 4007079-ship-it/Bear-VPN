@@ -35,8 +35,8 @@ void main() {
       nodes[n.name] = n;
     }
 
-    String base(ProxyNode n) =>
-        FlutterVless.parseFromURL(nodeToUri(n)).getFullConfiguration();
+    String base(ProxyNode n) => applyNodeFixups(
+        FlutterVless.parseFromURL(nodeToUri(n)).getFullConfiguration(), n);
     Map<String, dynamic> firstOutbound(ProxyNode n) =>
         ((jsonDecode(base(n)) as Map)['outbounds'] as List).first
             as Map<String, dynamic>;

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:smv_link_parser/smv_link_parser.dart';
+
 /// Способ распределения трафика между несколькими серверами.
 enum BalanceStrategy {
   /// Всё через сервер с наименьшей задержкой, остальные — запасные.
@@ -287,4 +289,36 @@ Map<String, dynamic>? _map(Map<String, dynamic> m, String key) {
     return c;
   }
   return null;
+}
+
+/// Поправки к конфигу, который строит плагин, — то, что он из ссылки не
+/// переносит. Применяются всегда, независимо от настроек.
+///
+/// * Hysteria2 `obfs=salamander` → `finalmask.udp` (Xray 26+). Без этого
+///   к серверу с обфускацией не подключиться.
+String applyNodeFixups(String config, ProxyNode node, {List<String>? log}) {
+  final salamander = node.protocol == ProxyProtocol.hysteria2 &&
+      node.obfs == 'salamander' &&
+      (node.obfsPassword ?? '').isNotEmpty;
+  if (!salamander) return config;
+  try {
+    final j = (jsonDecode(config) as Map).cast<String, dynamic>();
+    final o = ((j['outbounds'] as List).first as Map).cast<String, dynamic>();
+    final ss = _map(o, 'streamSettings') ?? (o['streamSettings'] = <String, dynamic>{});
+    final fm = _map(ss, 'finalmask') ?? (ss['finalmask'] = <String, dynamic>{});
+    fm['udp'] = [
+      for (final m in (fm['udp'] as List? ?? const []))
+        if (m is Map && m['type'] != 'salamander') m,
+      {
+        'type': 'salamander',
+        'settings': {'password': node.obfsPassword},
+      },
+    ];
+    (j['outbounds'] as List)[0] = o;
+    log?.add('hysteria2: обфускация salamander');
+    return const JsonEncoder.withIndent('  ').convert(j);
+  } catch (_) {
+    log?.add('hysteria2: не удалось добавить salamander');
+    return config;
+  }
 }

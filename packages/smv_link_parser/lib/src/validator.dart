@@ -170,9 +170,11 @@ List<ValidationIssue> validateNode(ProxyNode n) {
         'TLS к IP-адресу без SNI — сертификат, скорее всего, не пройдёт проверку');
   }
 
-  if (sec.insecure) {
+  if (sec.insecure && sec.pinnedCertSha256 == null && !sec.isReality) {
     warn(ValidationCode.insecureTls,
-        'Проверка сертификата отключена (insecure) — возможен перехват трафика');
+        'insecure (без проверки сертификата) ядро Xray 26 больше не '
+        'поддерживает — к серверу с самоподписанным сертификатом не '
+        'подключиться. Нужен отпечаток сертификата: параметр pcs= в ссылке');
   }
 
   final flow = n.flow;
