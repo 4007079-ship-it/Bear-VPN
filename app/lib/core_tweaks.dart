@@ -38,7 +38,7 @@ const utlsFingerprints = <(String, String)>[
   ('360', '360 Browser'),
   ('qq', 'QQ Browser'),
   ('random', 'Случайный браузер'),
-  ('randomized', 'Случайный, каждый раз новый'),
+  ('randomized', 'Случайный, каждый раз новый (кроме Reality)'),
 ];
 
 /// Включаемые настройки ядра. По умолчанию всё выключено — Bear работает
@@ -257,7 +257,11 @@ String applyCoreSettings(
       };
       if (key == null) continue;
       final ts = _map(ss, key) ?? (ss[key] = <String, dynamic>{});
-      ts['fingerprint'] = fp;
+      // «randomized» собирает ClientHello, который Reality иногда не
+      // принимает (сервер отдаёт настоящий сертификат) — для Reality
+      // берём «random»: случайный, но настоящий браузер.
+      ts['fingerprint'] =
+          (fp == 'randomized' && key == 'realitySettings') ? 'random' : fp;
       applied++;
     }
     log?.add('отпечаток uTLS: $fp (${applied > 0 ? '$applied' : 'нет серверов с TLS'})');

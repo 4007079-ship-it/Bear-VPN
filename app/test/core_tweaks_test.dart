@@ -147,4 +147,10 @@ void main() {
     expect(st.containsKey('tlsSettings'), isFalse);
     expect(st.containsKey('realitySettings'), isFalse);
   });
+
+  test('randomized для Reality заменяется на random', () {
+    final j = run(config(outbound('tcp')), CoreSettings(fingerprint: 'randomized'));
+    expect((j['outbounds'] as List).first['streamSettings']['realitySettings']
+        ['fingerprint'], 'random');
+  });
 }
