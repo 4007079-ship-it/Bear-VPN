@@ -141,19 +141,19 @@ for f in cfg/*.json; do
   expect_fail=false; [[ "$name" == *control-wrong-key* || "$name" == plain__dead ]] && expect_fail=true
   if [[ "$name" == *info-* ]]; then
     if $works; then res="ℹ️ работает"; else res="ℹ️ не работает"; fi
-    echo "::group::Лог $name"; grep -iE "error|fail|warn" "logs/$name.log" | tail -8; echo "::endgroup::"
+    echo "::group::Лог $name"; { grep -iE "error|fail|warn" "logs/$name.log" | tail -8; } || true; echo "::endgroup::"
   elif [[ $works != "$expect_fail" ]]; then
     res="✅"; PASSED=$((PASSED+1))
     $expect_fail && res="✅ (и должно не работать)"
   else
     res="❌"; FAILED=$((FAILED+1))
-    echo "::group::Лог $name"; grep -vE "\[Debug\].*(dns|DNS)" "logs/$name.log" | tail -25; cat "logs/$name.curl" 2>/dev/null; echo "::endgroup::"
+    echo "::group::Лог $name"; { grep -vE "\[Debug\].*(dns|DNS)" "logs/$name.log" | tail -25; cat "logs/$name.curl" 2>/dev/null; } || true; echo "::endgroup::"
   fi
   printf '| %s | %s | %s | %s | %s |\n' "$name" "$res" "${http:-нет}" "${t:-}" "$speed" >> "$REPORT"
   echo "$res $name http=$http t=$t speed=${speed}Mbit"
 done
 printf '\nПройдено: %d, ошибок: %d\n' "$PASSED" "$FAILED" >> "$REPORT"
-echo "::group::Лог сервера Hysteria2"; tail -30 logs/hy2.log; echo "::endgroup::"
+echo "::group::Лог сервера Hysteria2"; tail -30 logs/hy2.log || true; echo "::endgroup::"
 cat "$REPORT"
 [ -n "${GITHUB_STEP_SUMMARY:-}" ] && cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
 cp -r logs "$ROOT/e2e-logs" 2>/dev/null || true
