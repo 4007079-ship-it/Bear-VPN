@@ -37,13 +37,13 @@ void main() {
     expect(applyCoreSettings(c, CoreSettings()), c);
   });
 
-  test('fragment: dialerProxy и freedom-outbound', () {
+  test('fragment: finalmask.tcp у прокси, direct не трогаем', () {
     final j = run(config(outbound('tcp')), CoreSettings(fragment: true));
     final outs = j['outbounds'] as List;
-    expect(outs.first['streamSettings']['sockopt']['dialerProxy'], fragmentTag);
-    final f = outs.firstWhere((o) => o['tag'] == fragmentTag);
-    expect(f['settings']['fragment']['packets'], 'tlshello');
-    // direct не трогаем
+    final mask = outs.first['streamSettings']['finalmask']['tcp'] as List;
+    expect(mask.single['type'], 'fragment');
+    expect(mask.single['settings']['packets'], 'tlshello');
+    expect(mask.single['settings']['lengths'], ['100-200']);
     expect(outs.firstWhere((o) => o['tag'] == 'direct')['streamSettings'],
         isNull);
   });
@@ -52,7 +52,7 @@ void main() {
     final j = run(config(outbound('hysteria', protocol: 'hysteria')),
         CoreSettings(fragment: true));
     final outs = j['outbounds'] as List;
-    expect(outs.any((o) => o['tag'] == fragmentTag), isFalse);
+    expect(outs.first['streamSettings']['finalmask'], isNull);
   });
 
   test('xmux только для xhttp', () {

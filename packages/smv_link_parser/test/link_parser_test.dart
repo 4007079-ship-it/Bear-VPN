@@ -504,4 +504,28 @@ proxy-groups: []
       expect(s, isNot(contains('6ba85179e30d4fc2')));
     });
   });
+
+  group('Закреплённый сертификат (Xray 26)', () {
+    const pcs = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    test('trojan: pcs и vcn сохраняются и попадают обратно в ссылку', () {
+      final n = single('trojan://pw@1.2.3.4:443?security=tls&sni=a.example.com'
+          '&pcs=$pcs&vcn=a.example.com#T');
+      expect(n.security.pinnedCertSha256, pcs);
+      expect(n.security.verifyName, 'a.example.com');
+      final again = single(nodeToUri(n));
+      expect(again.security.pinnedCertSha256, pcs);
+      expect(again.security.verifyName, 'a.example.com');
+    });
+    test('hysteria2: pcs', () {
+      final n = single('hysteria2://pw@1.2.3.4:443?sni=a.example.com&pcs=$pcs#H');
+      expect(n.security.pinnedCertSha256, pcs);
+      expect(nodeToUri(n), contains('pcs=$pcs'));
+    });
+    test('сохранение в JSON', () {
+      final n = single('vless://${'1b9c1b2e-1f4b-4c5e-9d2a-3f4e5d6c7b8a'}@1.2.3.4:443'
+          '?security=tls&sni=a.example.com&pcs=$pcs#V');
+      final j = ProxyNode.fromJson(n.toJson());
+      expect(j.security.pinnedCertSha256, pcs);
+    });
+  });
 }

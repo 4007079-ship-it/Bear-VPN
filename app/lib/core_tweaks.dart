@@ -111,7 +111,6 @@ class CoreSettings {
 }
 
 /// Теги, которые Bear добавляет в конфиг.
-const fragmentTag = 'bear_fragment';
 const balancerTag = 'bear_auto';
 
 /// Применить настройки к конфигу Xray, собранному для одного сервера.
@@ -186,32 +185,32 @@ String applyCoreSettings(
   }
 
   if (s.fragment) {
+    // Xray 26+: фрагментация через finalmask (старый способ — freedom-outbound
+    // с dialerProxy — помечен устаревшим и будет удалён).
     var applied = 0;
     for (final o in proxies) {
       final ss = _map(o, 'streamSettings') ?? (o['streamSettings'] = <String, dynamic>{});
       final net = (ss['network'] as String?) ?? 'tcp';
-      // Фрагментация — только для TCP: Hysteria2, QUIC, KCP идут по UDP.
+      // Только TCP: Hysteria2, QUIC, KCP идут по UDP.
       if (o['protocol'] == 'hysteria' ||
           o['protocol'] == 'hysteria2' ||
           const {'hysteria', 'quic', 'kcp', 'mkcp'}.contains(net)) {
         continue;
       }
-      final sock = _map(ss, 'sockopt') ?? (ss['sockopt'] = <String, dynamic>{});
-      sock['dialerProxy'] = fragmentTag;
-      applied++;
-    }
-    if (applied > 0) {
-      outbounds.add({
-        'tag': fragmentTag,
-        'protocol': 'freedom',
-        'settings': {
-          'fragment': {
+      final fm = _map(ss, 'finalmask') ?? (ss['finalmask'] = <String, dynamic>{});
+      final tcp = [
+        for (final m in (fm['tcp'] as List? ?? const []))
+          if (m is Map && m['type'] != 'fragment') m
+      ]..add({
+          'type': 'fragment',
+          'settings': {
             'packets': 'tlshello',
-            'length': s.fragmentLength,
-            'interval': s.fragmentInterval,
+            'lengths': [s.fragmentLength],
+            'delays': [s.fragmentInterval],
           },
-        },
-      });
+        });
+      fm['tcp'] = tcp;
+      applied++;
     }
     log?.add('fragment: ${applied > 0 ? 'включён ($applied)' : 'нет TCP-серверов'}');
   }

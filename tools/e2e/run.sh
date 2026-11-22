@@ -36,6 +36,9 @@ openssl x509 -req -in srv.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 \
 sudo cp ca.crt /usr/local/share/ca-certificates/bear-test.crt
 sudo update-ca-certificates >/dev/null
 echo "127.0.0.1 bear.test" | sudo tee -a /etc/hosts >/dev/null
+# SHA-256 сертификата для pcs= (Xray 26 не поддерживает allowInsecure)
+PCS=$(openssl x509 -in srv.crt -outform der | sha256sum | cut -d' ' -f1)
+OBFS=$(openssl rand -hex 8)
 echo "::endgroup::"
 
 TLS="{\"certificates\":[{\"certificateFile\":\"$W/srv.crt\",\"keyFile\":\"$W/srv.key\"}]}"
@@ -69,8 +72,13 @@ cat > server.json <<JSON
 }
 JSON
 cat > hy2.json <<JSON
-{"log":{"level":"warn"},
- "inbounds":[{"type":"hysteria2","listen":"127.0.0.1","listen_port":20007,
+{"log":{"level":"info"},
+ "inbounds":[
+  {"type":"hysteria2","listen":"127.0.0.1","listen_port":20007,
+   "users":[{"password":"$PASS"}],
+   "tls":{"enabled":true,"server_name":"bear.test","certificate_path":"$W/srv.crt","key_path":"$W/srv.key"}},
+  {"type":"hysteria2","listen":"127.0.0.1","listen_port":20009,
+   "obfs":{"type":"salamander","password":"$OBFS"},
    "users":[{"password":"$PASS"}],
    "tls":{"enabled":true,"server_name":"bear.test","certificate_path":"$W/srv.crt","key_path":"$W/srv.key"}}],
  "outbounds":[{"type":"direct"}]}
@@ -79,7 +87,7 @@ JSON
 "$SB" run -c hy2.json > logs/hy2.log 2>&1 &
 sleep 2
 
-VMESS=$(printf '{"v":"2","ps":"vmess-ws-tls","add":"127.0.0.1","port":"20004","id":"%s","aid":"0","net":"ws","path":"/vm","host":"bear.test","tls":"tls","sni":"bear.test","scy":"auto"}' "$UUID" | base64 -w0)
+VMESS=$(printf '{"v":"2","ps":"vmess-ws-tls","add":"127.0.0.1","port":"20004","id":"%s","aid":"0","net":"ws","path":"/vm","host":"bear.test","tls":"tls","sni":"bear.test","scy":"auto","pcs":"%s"}' "$UUID" "$PCS" | base64 -w0)
 SSUSER=$(printf 'aes-256-gcm:%s' "$PASS" | base64 -w0)
 R="security=reality&sni=www.microsoft.com&pbk=$PUB&sid=a1b2&fp=chrome"
 cat > links.txt <<LINKS
@@ -87,10 +95,13 @@ vless://$UUID@127.0.0.1:20001?$R&type=tcp&flow=xtls-rprx-vision#reality-tcp
 vless://$UUID@127.0.0.1:20002?$R&type=xhttp&path=%2Fxh&mode=auto#reality-xhttp
 vless://$UUID@127.0.0.1:20003?$R&type=tcp&flow=xtls-rprx-vision#reality-tcp-2
 vmess://$VMESS
-trojan://$PASS@127.0.0.1:20005?security=tls&sni=bear.test&type=tcp#trojan-tls
+trojan://$PASS@127.0.0.1:20005?security=tls&sni=bear.test&type=tcp&pcs=$PCS#trojan-tls
 ss://$SSUSER@127.0.0.1:20006#ss
-hysteria2://$PASS@127.0.0.1:20007?sni=bear.test#hy2
-vless://$UUID@127.0.0.1:20008?security=tls&sni=bear.test&type=ws&path=%2Fvl&host=bear.test#vless-ws-tls
+hysteria2://$PASS@127.0.0.1:20007?sni=bear.test&pcs=$PCS#hy2
+hysteria2://$PASS@127.0.0.1:20009?sni=bear.test&pcs=$PCS&obfs=salamander&obfs-password=$OBFS#hy2-obfs
+hysteria2://$PASS@127.0.0.1:20007?sni=bear.test#info-hy2-system-ca
+trojan://$PASS@127.0.0.1:20005?security=tls&sni=bear.test&type=tcp&allowInsecure=1#info-trojan-insecure
+vless://$UUID@127.0.0.1:20008?security=tls&sni=bear.test&type=ws&path=%2Fvl&host=bear.test&pcs=$PCS#vless-ws-tls
 vless://$UUID@127.0.0.1:29999?$R&type=tcp&flow=xtls-rprx-vision#dead
 vless://$UUID@127.0.0.1:20001?security=reality&sni=www.microsoft.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=a1b2&fp=chrome&type=tcp&flow=xtls-rprx-vision#control-wrong-key
 LINKS
@@ -108,33 +119,41 @@ printf '| Проверка | Итог | Ответ | Время, с | 5 МБ, М
 for f in cfg/*.json; do
   name=$(basename "$f" .json)
   port=$(jq -r '[.inbounds[] | select(.protocol=="socks")][0].port' "$f")
-  "$XRAY" run -c "$f" > "logs/$name.log" 2>&1 &
+  jq '.log = {"loglevel":"debug"}' "$f" > "$f.dbg"
+  "$XRAY" run -c "$f.dbg" > "logs/$name.log" 2>&1 &
   pid=$!
   for _ in $(seq 1 50); do
     (exec 3<>/dev/tcp/127.0.0.1/"$port") 2>/dev/null && break; sleep 0.2
   done
   code=$(curl -s -o /dev/null -w '%{http_code} %{time_total}' --max-time 20 \
     --socks5-hostname "127.0.0.1:$port" https://www.gstatic.com/generate_204 || true)
-  speed="-"
+  speed="-"; dl_ok=true
   if [[ "$code" == 204* ]]; then
-    bps=$(curl -s -o /dev/null -w '%{speed_download}' --max-time 30 \
-      --socks5-hostname "127.0.0.1:$port" 'https://speed.cloudflare.com/__down?bytes=5000000' || echo 0)
-    speed=$(awk -v b="$bps" 'BEGIN{printf "%.0f", b*8/1000000}')
+    dl=$(curl -sS -o /dev/null -w '%{http_code} %{size_download} %{speed_download}' --max-time 40 \
+      --socks5-hostname "127.0.0.1:$port" 'https://speed.cloudflare.com/__down?bytes=5000000' 2>>"logs/$name.curl" || true)
+    read -r dl_code dl_size dl_bps <<< "${dl:-0 0 0}"
+    speed=$(awk -v b="${dl_bps:-0}" 'BEGIN{printf "%.0f", b*8/1000000}')
+    [[ "$dl_code" == 200 && "${dl_size:-0}" -ge 5000000 ]] || { dl_ok=false; speed="сбой ($dl_code, ${dl_size:-0} Б)"; }
   fi
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null || true
   http=${code%% *}; t=${code#* }
+  works=false; [[ "$http" == 204 ]] && $dl_ok && works=true
   expect_fail=false; [[ "$name" == *control-wrong-key* || "$name" == plain__dead ]] && expect_fail=true
-  if [[ "$http" == 204 ]] && ! $expect_fail || [[ "$http" != 204 ]] && $expect_fail; then
+  if [[ "$name" == *info-* ]]; then
+    if $works; then res="ℹ️ работает"; else res="ℹ️ не работает"; fi
+    echo "::group::Лог $name"; grep -iE "error|fail|warn" "logs/$name.log" | tail -8; echo "::endgroup::"
+  elif [[ $works != "$expect_fail" ]]; then
     res="✅"; PASSED=$((PASSED+1))
+    $expect_fail && res="✅ (и должно не работать)"
   else
     res="❌"; FAILED=$((FAILED+1))
-    echo "::group::Лог $name"; tail -20 "logs/$name.log"; echo "::endgroup::"
+    echo "::group::Лог $name"; grep -vE "\[Debug\].*(dns|DNS)" "logs/$name.log" | tail -25; cat "logs/$name.curl" 2>/dev/null; echo "::endgroup::"
   fi
-  $expect_fail && res="$res (должно не работать)"
   printf '| %s | %s | %s | %s | %s |\n' "$name" "$res" "${http:-нет}" "${t:-}" "$speed" >> "$REPORT"
   echo "$res $name http=$http t=$t speed=${speed}Mbit"
 done
 printf '\nПройдено: %d, ошибок: %d\n' "$PASSED" "$FAILED" >> "$REPORT"
+echo "::group::Лог сервера Hysteria2"; tail -30 logs/hy2.log; echo "::endgroup::"
 cat "$REPORT"
 [ -n "${GITHUB_STEP_SUMMARY:-}" ] && cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
 cp -r logs "$ROOT/e2e-logs" 2>/dev/null || true

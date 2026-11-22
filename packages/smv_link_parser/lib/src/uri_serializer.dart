@@ -29,6 +29,8 @@ String nodeToUri(ProxyNode n) {
         {
           'sni': s.sni,
           'insecure': s.insecure ? '1' : null,
+          'pcs': s.pinnedCertSha256,
+          'vcn': s.verifyName,
           'alpn': s.alpn.isEmpty ? null : s.alpn.join(','),
           'obfs': n.obfs,
           'obfs-password': n.obfsPassword,
@@ -101,6 +103,8 @@ Map<String, String?> _stream(ProxyNode n) {
     'pbk': s.publicKey,
     'sid': s.shortId,
     'spx': s.spiderX,
+    'pcs': s.pinnedCertSha256,
+    'vcn': s.verifyName,
   };
 }
 
@@ -126,6 +130,8 @@ String _vmess(ProxyNode n) {
     if (s.insecure) 'allowInsecure': '1',
     if (s.publicKey != null) 'pbk': s.publicKey,
     if (s.shortId != null) 'sid': s.shortId,
+    if (s.pinnedCertSha256 != null) 'pcs': s.pinnedCertSha256,
+    if (s.verifyName != null) 'vcn': s.verifyName,
   };
   return 'vmess://${base64.encode(utf8.encode(jsonEncode(j)))}';
 }

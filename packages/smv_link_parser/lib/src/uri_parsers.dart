@@ -155,6 +155,8 @@ String _defaultName(String server, int port) =>
     publicKey: l.qAny(['pbk', 'publickey', 'public-key']),
     shortId: l.qAny(['sid', 'shortid', 'short-id']),
     spiderX: l.qAny(['spx', 'spiderx']),
+    pinnedCertSha256: l.qAny(['pcs', 'pinnedpeercertsha256']),
+    verifyName: l.qAny(['vcn', 'verifypeercertbyname']),
   );
   return (transport, security);
 }
@@ -253,6 +255,8 @@ ProxyNode _parseVmess(String link, NodeSource source) {
         insecure: toBool(j['allowInsecure']) || toBool(j['insecure']),
         publicKey: str(j['pbk']),
         shortId: str(j['sid']),
+        pinnedCertSha256: str(j['pcs']),
+        verifyName: str(j['vcn']),
       ),
       source: source,
     );
@@ -328,6 +332,8 @@ ProxyNode _parseHysteria2(RawLink l, NodeSource source) {
       sni: l.qAny(['sni', 'peer']),
       insecure: l.qBool(['insecure', 'allowinsecure']),
       alpn: splitCsv(l.q('alpn')),
+      pinnedCertSha256: l.qAny(['pcs', 'pinsha256', 'pinnedpeercertsha256']),
+      verifyName: l.qAny(['vcn', 'verifypeercertbyname']),
     ),
     transport: const TransportConfig(type: 'udp'),
     source: source,

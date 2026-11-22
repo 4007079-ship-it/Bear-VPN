@@ -96,6 +96,13 @@ class SecurityConfig {
   final String? shortId;
   final String? spiderX;
 
+  /// Xray 26+: SHA-256 сертификата сервера (hex) — замена allowInsecure
+  /// для самоподписанных сертификатов (`pcs=` в ссылке).
+  final String? pinnedCertSha256;
+
+  /// Xray 26+: имя, по которому проверять сертификат (`vcn=`).
+  final String? verifyName;
+
   const SecurityConfig({
     this.type = 'none',
     this.sni,
@@ -105,6 +112,8 @@ class SecurityConfig {
     this.publicKey,
     this.shortId,
     this.spiderX,
+    this.pinnedCertSha256,
+    this.verifyName,
   });
 
   bool get isTls => type == 'tls' || type == 'reality';
@@ -119,6 +128,8 @@ class SecurityConfig {
         'public_key': publicKey,
         'short_id': shortId,
         'spider_x': spiderX,
+        'pinned_cert_sha256': pinnedCertSha256,
+        'verify_name': verifyName,
       });
 
   factory SecurityConfig.fromJson(Map<String, Object?> j) => SecurityConfig(
@@ -132,6 +143,8 @@ class SecurityConfig {
         publicKey: j['public_key'] as String?,
         shortId: j['short_id'] as String?,
         spiderX: j['spider_x'] as String?,
+        pinnedCertSha256: j['pinned_cert_sha256'] as String?,
+        verifyName: j['verify_name'] as String?,
       );
 }
 
