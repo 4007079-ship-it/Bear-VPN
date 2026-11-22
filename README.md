@@ -111,6 +111,16 @@ dart pub get && dart test
 - Перетаскивание файлов и QR в окно на Windows.
 - Суммирование каналов.
 
-## Разработчик
+## Автор
 
-SMV. Частный проект, все права защищены.
+<img src="docs/author.png" width="120" height="120" align="left" alt="SMV">
+
+&nbsp;&nbsp;SMV<br>
+&nbsp;&nbsp;<a href="mailto:4007079@gmail.com">4007079@gmail.com</a><br>
+&nbsp;&nbsp;<a href="https://github.com/4007079-ship-it">github.com/4007079-ship-it</a>
+
+<br clear="left">
+
+## Лицензия
+
+Частный проект. Все права защищены © SMV.
