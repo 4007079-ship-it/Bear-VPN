@@ -214,7 +214,7 @@ jobs:
       - name: Check tun2socks creates utun (same flags as the app)
         run: |
           T="build/macos/Build/Products/Release/Bear VPN.app/Contents/Resources/tun/tun2socks-darwin-$(uname -m | sed 's/x86_64/amd64/')"
-          grep -q -- '--device "\$TUN" --proxy socks5://127.0.0.1:$socksPort --loglevel warning' lib/mac_tun.dart
+          grep -qF -- '--device "\$TUN" --proxy socks5://127.0.0.1:$socksPort --loglevel warning' lib/mac_tun.dart
           sudo "$T" --device utun225 --proxy socks5://127.0.0.1:10807 --loglevel warning > /tmp/t2s.log 2>&1 &
           for i in $(seq 1 30); do ifconfig utun225 >/dev/null 2>&1 && break; sleep 0.2; done
           ifconfig utun225 && echo "адаптер создаётся" || { cat /tmp/t2s.log; exit 1; }
