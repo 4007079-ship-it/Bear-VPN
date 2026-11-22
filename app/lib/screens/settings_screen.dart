@@ -109,8 +109,10 @@ class SettingsScreen extends StatelessWidget {
               ListTile(
                 title: const Text('Отпечаток uTLS'),
                 subtitle: const Text(
-                    'Каким браузером представляться при подключении к серверу '
-                    '(TLS и Reality). «Как в ссылке» — параметр fp= из ключа.'),
+                    'Каким браузером представляться при подключении к серверу. '
+                    '«Как в ссылке» — параметр fp= из ключа. Серверы Reality '
+                    'принимают только Chrome, Firefox и Safari — для них '
+                    'остальные варианты не применяются.'),
                 trailing: DropdownButton<String?>(
                   value: s.fingerprint,
                   onChanged: (v) => vpn.updateSettings((s) => s.fingerprint = v),

@@ -75,8 +75,10 @@ void main() {
       write('fp-${fp}__reality-tcp',
           applyCoreSettings(base(node('reality-tcp')), CoreSettings(fingerprint: fp)));
     }
-    write('fp-firefox__trojan-tls',
-        applyCoreSettings(base(node('trojan-tls')), CoreSettings(fingerprint: 'firefox')));
+    for (final (fp, _) in utlsFingerprints) {
+      write('fp-${fp}__trojan-tls',
+          applyCoreSettings(base(node('trojan-tls')), CoreSettings(fingerprint: fp)));
+    }
     write(
         'serverip4__reality-tcp',
         applyCoreSettings(

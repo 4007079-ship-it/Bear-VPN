@@ -148,9 +148,14 @@ void main() {
     expect(st.containsKey('realitySettings'), isFalse);
   });
 
-  test('randomized для Reality заменяется на random', () {
-    final j = run(config(outbound('tcp')), CoreSettings(fingerprint: 'randomized'));
-    expect((j['outbounds'] as List).first['streamSettings']['realitySettings']
-        ['fingerprint'], 'random');
+  test('Reality: только совместимые отпечатки', () {
+    String fpOf(String fp) => (run(config(outbound('tcp')),
+            CoreSettings(fingerprint: fp))['outbounds'] as List)
+        .first['streamSettings']['realitySettings']['fingerprint'] as String? ??
+        '';
+    expect(realityFingerprints, contains(fpOf('random')));
+    expect(realityFingerprints, contains(fpOf('randomized')));
+    expect(fpOf('safari'), 'safari');
+    expect(fpOf('ios'), isNot('ios'));
   });
 }

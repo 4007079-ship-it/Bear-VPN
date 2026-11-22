@@ -38,8 +38,11 @@ const utlsFingerprints = <(String, String)>[
   ('360', '360 Browser'),
   ('qq', 'QQ Browser'),
   ('random', 'Случайный браузер'),
-  ('randomized', 'Случайный, каждый раз новый (кроме Reality)'),
+  ('randomized', 'Случайный, каждый раз новый'),
 ];
+
+/// Отпечатки, с которыми работает Reality (проверено e2e на Xray 26).
+const realityFingerprints = ['chrome', 'firefox', 'safari'];
 
 /// Включаемые настройки ядра. По умолчанию всё выключено — Bear работает
 /// как обычно.
@@ -257,11 +260,17 @@ String applyCoreSettings(
       };
       if (key == null) continue;
       final ts = _map(ss, key) ?? (ss[key] = <String, dynamic>{});
-      // «randomized» собирает ClientHello, который Reality иногда не
-      // принимает (сервер отдаёт настоящий сертификат) — для Reality
-      // берём «random»: случайный, но настоящий браузер.
-      ts['fingerprint'] =
-          (fp == 'randomized' && key == 'realitySettings') ? 'random' : fp;
+      if (key == 'realitySettings' && !realityFingerprints.contains(fp)) {
+        // Проверено на Xray 26: Reality принимает только Chrome, Firefox и
+        // Safari, остальные сервер отвергает (отдаёт настоящий сертификат).
+        if (fp == 'random' || fp == 'randomized') {
+          ts['fingerprint'] = realityFingerprints[
+              DateTime.now().microsecondsSinceEpoch % realityFingerprints.length];
+        }
+        // iOS/Android/Edge/360/QQ: для Reality оставляем отпечаток из ссылки.
+      } else {
+        ts['fingerprint'] = fp;
+      }
       applied++;
     }
     log?.add('отпечаток uTLS: $fp (${applied > 0 ? '$applied' : 'нет серверов с TLS'})');
