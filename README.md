@@ -14,7 +14,14 @@
   <a href="https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/link-parser.yml"><img src="https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/link-parser.yml/badge.svg?branch=main" alt="Парсер"></a>
 </p>
 
-> Тестовая версия. Скачать — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases).
+<p align="center">
+  <a href="https://github.com/4007079-ship-it/Bear-VPN/releases/latest/download/Bear-VPN-windows-setup.exe"><img src="https://img.shields.io/badge/Windows-%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C%20%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D1%89%D0%B8%D0%BA-FFC400?style=for-the-badge&logo=windows&logoColor=black&labelColor=0A0A0A" alt="Скачать для Windows"></a>
+  <a href="https://github.com/4007079-ship-it/Bear-VPN/releases/latest/download/Bear-VPN-android.apk"><img src="https://img.shields.io/badge/Android-%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C%20APK-FFC400?style=for-the-badge&logo=android&logoColor=black&labelColor=0A0A0A" alt="Скачать для Android"></a>
+</p>
+
+<p align="center">
+  Все версии и описание изменений — на странице <a href="https://github.com/4007079-ship-it/Bear-VPN/releases">Releases</a>.
+</p>
 
 ## Возможности
 
@@ -31,6 +38,8 @@
 - Режимы: «Прокси» (только локальный порт), «Системный прокси» (Windows), «VPN» (весь трафик; на Windows — с правами администратора).
 - При отключении и закрытии программы прокси Windows возвращается как было.
 - Задержка (пинг), скорость и объём трафика, значок состояния в трее Windows.
+- IP-адрес выхода, который видят сайты: страна, город, провайдер.
+- IPv6 через туннель; выбор IPv4/IPv6 для подключения к серверу.
 
 **Настройки** (по умолчанию выключены)
 - Резка первого пакета TLS (fragment).
@@ -39,17 +48,20 @@
 
 ## Скачать
 
-Последняя версия — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases):
-- `Bear-VPN-<версия>-android.apk` — Android 6.0+;
-- `Bear-VPN-<версия>-windows-setup.exe` — установщик для Windows 10/11 (64 бит);
-- `Bear-VPN-<версия>-windows-x64.zip` — Windows без установки: распакуйте целиком и запустите `BearVPN.exe`,
-  папка `xray` должна лежать рядом.
+Ссылки ниже всегда ведут на **последнюю версию**:
 
-Промежуточные сборки после каждого изменения — в [Actions → app-build](https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/app-build.yml),
-раздел **Artifacts** у последнего успешного запуска.
+| Система | Скачать | Как установить |
+|---|---|---|
+| Windows 10/11 (64 бит) | [Установщик `.exe`](https://github.com/4007079-ship-it/Bear-VPN/releases/latest/download/Bear-VPN-windows-setup.exe) | Запустите и следуйте шагам. Ярлык появится в меню «Пуск». |
+| Windows без установки | [Архив `.zip`](https://github.com/4007079-ship-it/Bear-VPN/releases/latest/download/Bear-VPN-windows-x64.zip) | Распакуйте целиком и запустите `BearVPN.exe` (папка `xray` — рядом). |
+| Android 6.0+ | [Файл `.apk`](https://github.com/4007079-ship-it/Bear-VPN/releases/latest/download/Bear-VPN-android.apk) | Откройте файл на телефоне, разрешите установку из этого источника. |
 
-**Новая версия:** поднимите `version` в `app/pubspec.yaml`, добавьте заметки `docs/releases/vX.Y.Z.md` и опубликуйте
-релиз с тегом `vX.Y.Z` на GitHub — файлы соберутся и приложатся сами.
+Предыдущие версии и контрольные суммы — на странице [Releases](https://github.com/4007079-ship-it/Bear-VPN/releases).
+Промежуточные сборки после каждого изменения — в [Actions → app-build](https://github.com/4007079-ship-it/Bear-VPN/actions/workflows/app-build.yml), раздел **Artifacts**.
+
+**Выпустить новую версию:** поднимите `version` в `app/pubspec.yaml`, добавьте заметки `docs/releases/vX.Y.Z.md`
+и опубликуйте релиз с тегом `vX.Y.Z` на GitHub (без галочки «Pre-release») — файлы соберутся, приложатся,
+а ссылки выше начнут вести на новую версию.
 
 ## Устройство проекта
 

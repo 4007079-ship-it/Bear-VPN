@@ -133,11 +133,17 @@ jobs:
           cp dist/Bear-VPN-android/Bear-VPN-test.apk "out/Bear-VPN-${VER}-android.apk"
           (cd dist/Bear-VPN-windows && zip -qr "../../out/Bear-VPN-${VER}-windows-x64.zip" .)
           cp dist/Bear-VPN-windows-setup/*.exe out/
+          # Постоянные имена — для ссылок «последняя версия» в README:
+          # https://github.com/<repo>/releases/latest/download/Bear-VPN-android.apk
+          cp "out/Bear-VPN-${VER}-android.apk" out/Bear-VPN-android.apk
+          cp "out/Bear-VPN-${VER}-windows-setup.exe" out/Bear-VPN-windows-setup.exe
+          cp "out/Bear-VPN-${VER}-windows-x64.zip" out/Bear-VPN-windows-x64.zip
           (cd out && sha256sum * > SHA256SUMS.txt)
           ls -la out
       - uses: softprops/action-gh-release@v2
         with:
           name: Bear VPN ${{ github.ref_name }}
           body_path: docs/releases/${{ github.ref_name }}.md
-          prerelease: true
+          # Как отмечено при публикации: обычный релиз становится «Latest»
+          prerelease: ${{ github.event.release.prerelease }}
           files: out/*
