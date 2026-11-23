@@ -51,7 +51,10 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: [
             for (final (icon, label) in _items)
-              NavigationDestination(icon: Icon(icon), label: label),
+              NavigationDestination(
+                  icon: Icon(icon),
+                  // На телефоне «О программе» не помещается в одну строку.
+                  label: label == 'О программе' ? 'Инфо' : label),
           ],
         ),
       );

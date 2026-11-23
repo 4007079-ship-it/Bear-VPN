@@ -113,14 +113,24 @@ class SettingsScreen extends StatelessWidget {
                     '«Как в ссылке» — параметр fp= из ключа. Серверы Reality '
                     'принимают только Chrome, Firefox и Safari — для них '
                     'остальные варианты не применяются.'),
-                trailing: DropdownButton<String?>(
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: DropdownButtonFormField<String?>(
                   value: s.fingerprint,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
                   onChanged: (v) => vpn.updateSettings((s) => s.fingerprint = v),
                   items: [
                     const DropdownMenuItem(
                         value: null, child: Text('Как в ссылке')),
                     for (final (id, label) in utlsFingerprints)
-                      DropdownMenuItem(value: id, child: Text(label)),
+                      DropdownMenuItem(
+                          value: id,
+                          child: Text(label, overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ),
