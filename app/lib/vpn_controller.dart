@@ -192,6 +192,9 @@ class VpnController extends ChangeNotifier {
   }
 
   bool _busy = false;
+
+  /// Плагин отказался от DNS через сервер для этого подключения.
+  bool _dnsProxyUnsupported = false;
   ConnectionMode? _activeMode;
 
   ConnectionMode mode =
@@ -314,6 +317,7 @@ class VpnController extends ChangeNotifier {
       if (!Platform.isLinux) await _init();
       final parsed = FlutterVless.parseFromURL(nodeToUri(node));
       _startLog.clear();
+      _dnsProxyUnsupported = false;
       final baseConfig = _applySettings(node,
           applyNodeFixups(parsed.getFullConfiguration(), node, log: _startLog));
       if (proxyOnlyMode) {
@@ -358,13 +362,35 @@ class VpnController extends ChangeNotifier {
         socksPort = _inboundPort(baseConfig, 'socks');
         try {
           _startLog.add('$label: запуск…');
+          // Android VPN: DNS телефона — через сервер (как в Hiddify).
+          // Иначе запросы идут к DNS роутера/провайдера мимо туннеля, и через
+          // Wi‑Fi сайты не открываются (подмена или блокировка ответов).
+          final dnsViaProxy = mode == ConnectionMode.vpn && !_dnsProxyUnsupported;
+          if (dnsViaProxy) _startLog.add('$label: DNS через сервер');
           await _vless
               .startVless(
                 remark: node.name,
                 config: config,
                 proxyOnly: mode == ConnectionMode.proxy,
+                androidDnsPolicy: dnsViaProxy
+                    ? AndroidDnsPolicy.proxy
+                    : AndroidDnsPolicy.config,
+                androidDnsProxyOutboundTag: dnsViaProxy ? 'proxy' : null,
                 notificationDisconnectButtonName: 'Отключить',
               )
+              .catchError((Object e) {
+                if (!dnsViaProxy) throw e;
+                // Конфиг не подошёл для DNS через сервер — пробуем как раньше.
+                _dnsProxyUnsupported = true;
+                _startLog.add('$label: DNS через сервер не принят ($e), '
+                    'запуск с DNS из конфига');
+                return _vless.startVless(
+                  remark: node.name,
+                  config: config,
+                  proxyOnly: false,
+                  notificationDisconnectButtonName: 'Отключить',
+                );
+              })
               .timeout(const Duration(seconds: 20),
                   onTimeout: () => throw TimeoutException(
                       'ядро не ответило за 20 с'));

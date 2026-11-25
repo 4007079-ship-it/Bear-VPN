@@ -1,7 +1,7 @@
 name: smv_vpn
 description: Bear VPN — клиент (разработчик SMV).
 publish_to: none
-version: 0.1.8+9
+version: 0.1.9+10
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
